@@ -3,16 +3,15 @@ import { X, AlertCircle } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import { Input, TextArea, Select } from '../common/Input';
-import { BRAND_OPTIONS, LOCATION_OPTIONS, MACHINE_STATUS } from '../../utils/constants';
+import { BRAND_OPTIONS, getModelsByBrand, LOCATION_OPTIONS, MACHINE_STATUS } from '../../utils/constants';
 import { getTodayDateString } from '../../utils/helpers';
 
 const statusOptions = [
-  { value: MACHINE_STATUS.RECEIVED, label: 'Received' },
-  { value: MACHINE_STATUS.DIAGNOSIS, label: 'In Diagnosis' },
-  { value: MACHINE_STATUS.WAITING_PARTS, label: 'Waiting Parts' },
-  { value: MACHINE_STATUS.IN_REPAIR, label: 'In Repair' },
-  { value: MACHINE_STATUS.COMPLETED, label: 'Completed' },
-  { value: MACHINE_STATUS.DELIVERED, label: 'Delivered' },
+  { value: MACHINE_STATUS.MAINTENANCE, label: 'Em Manutenção' },
+  { value: MACHINE_STATUS.WAITING_PARTS, label: 'Aguardando Peça' },
+  { value: MACHINE_STATUS.TESTING, label: 'Em Teste' },
+  { value: MACHINE_STATUS.READY, label: 'Pronta para Entrega' },
+  { value: MACHINE_STATUS.COMPLETED, label: 'Finalizada' },
 ];
 
 export function MachineForm({ isOpen, onClose, onSubmit, initialData = null }) {
@@ -20,14 +19,15 @@ export function MachineForm({ isOpen, onClose, onSubmit, initialData = null }) {
     serialNumber: '',
     brand: '',
     model: '',
+    patrimony: '',
     location: '',
-    locationDetail: '',
+    technician: '',
     entryDate: getTodayDateString(),
     problemDescription: '',
-    status: MACHINE_STATUS.RECEIVED,
-    isUrgent: false,
+    status: MACHINE_STATUS.MAINTENANCE,
   });
   const [errors, setErrors] = useState({});
+  const [availableModels, setAvailableModels] = useState([]);
 
   useEffect(() => {
     if (initialData) {
@@ -35,39 +35,53 @@ export function MachineForm({ isOpen, onClose, onSubmit, initialData = null }) {
         serialNumber: initialData.serialNumber || '',
         brand: initialData.brand || '',
         model: initialData.model || '',
+        patrimony: initialData.patrimony || '',
         location: initialData.location || '',
-        locationDetail: initialData.locationDetail || '',
+        technician: initialData.technician || '',
         entryDate: initialData.entryDate ? initialData.entryDate.split('T')[0] : getTodayDateString(),
         problemDescription: initialData.problemDescription || '',
-        status: initialData.status || MACHINE_STATUS.RECEIVED,
-        isUrgent: initialData.isUrgent || false,
+        status: initialData.status || MACHINE_STATUS.MAINTENANCE,
       });
+      if (initialData.brand) {
+        setAvailableModels(getModelsByBrand(initialData.brand));
+      }
     } else {
       setFormData({
         serialNumber: '',
         brand: '',
         model: '',
+        patrimony: '',
         location: '',
-        locationDetail: '',
+        technician: '',
         entryDate: getTodayDateString(),
         problemDescription: '',
-        status: MACHINE_STATUS.RECEIVED,
-        isUrgent: false,
+        status: MACHINE_STATUS.MAINTENANCE,
       });
+      setAvailableModels([]);
     }
     setErrors({});
   }, [initialData, isOpen]);
 
   const validate = () => {
     const newErrors = {};
-    if (!formData.serialNumber.trim()) newErrors.serialNumber = 'Serial number is required';
-    if (!formData.brand) newErrors.brand = 'Brand is required';
-    if (!formData.model.trim()) newErrors.model = 'Model is required';
-    if (!formData.location) newErrors.location = 'Location is required';
-    if (!formData.problemDescription.trim()) newErrors.problemDescription = 'Problem description is required';
+    if (!formData.serialNumber.trim()) newErrors.serialNumber = 'Número de série é obrigatório';
+    if (!formData.brand) newErrors.brand = 'Marca é obrigatória';
+    if (!formData.model) newErrors.model = 'Modelo é obrigatório';
+    if (!formData.patrimony.trim()) newErrors.patrimony = 'Patrimônio é obrigatório';
+    if (!formData.location.trim()) newErrors.location = 'Local é obrigatório';
+    if (!formData.technician.trim()) newErrors.technician = 'Técnico é obrigatório';
+    if (!formData.problemDescription.trim()) newErrors.problemDescription = 'Descrição do problema é obrigatória';
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const handleBrandChange = (brand) => {
+    setFormData(prev => ({ ...prev, brand, model: '' }));
+    setAvailableModels(getModelsByBrand(brand));
+    if (errors.brand) {
+      setErrors(prev => ({ ...prev, brand: undefined }));
+    }
   };
 
   const handleSubmit = (e) => {
@@ -116,40 +130,54 @@ export function MachineForm({ isOpen, onClose, onSubmit, initialData = null }) {
             placeholder="ex: SN123456789"
           />
           
+          <Input
+            label="Patrimônio"
+            value={formData.patrimony}
+            onChange={(e) => handleChange('patrimony', e.target.value)}
+            error={errors.patrimony}
+            required
+            placeholder="ex: PAT-001"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Select
             label="Marca"
             value={formData.brand}
-            onChange={(e) => handleChange('brand', e.target.value)}
+            onChange={(e) => handleBrandChange(e.target.value)}
             options={BRAND_OPTIONS.map(b => ({ value: b, label: b }))}
             error={errors.brand}
             required
           />
+          
+          <Select
+            label="Modelo"
+            value={formData.model}
+            onChange={(e) => handleChange('model', e.target.value)}
+            options={availableModels.map(m => ({ value: m, label: m }))}
+            error={errors.model}
+            required
+            disabled={!formData.brand}
+          />
         </div>
 
-        <Input
-          label="Modelo"
-          value={formData.model}
-          onChange={(e) => handleChange('model', e.target.value)}
-          error={errors.model}
-          required
-          placeholder="ex: LaserJet Pro M404n"
-        />
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Select
-            label="Localização"
+          <Input
+            label="Local do Equipamento"
             value={formData.location}
             onChange={(e) => handleChange('location', e.target.value)}
-            options={LOCATION_OPTIONS}
             error={errors.location}
             required
+            placeholder="ex: Laboratório, Cliente - Contabilidade"
           />
           
           <Input
-            label="Detalhe da Localização"
-            value={formData.locationDetail}
-            onChange={(e) => handleChange('locationDetail', e.target.value)}
-            placeholder="ex: Bancada A3, Andar 2"
+            label="Técnico Responsável"
+            value={formData.technician}
+            onChange={(e) => handleChange('technician', e.target.value)}
+            error={errors.technician}
+            required
+            placeholder="ex: João Silva"
           />
         </div>
 
@@ -180,20 +208,6 @@ export function MachineForm({ isOpen, onClose, onSubmit, initialData = null }) {
           rows={3}
           placeholder="Descreva o problema desta máquina..."
         />
-
-        <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-          <input
-            type="checkbox"
-            id="isUrgent"
-            checked={formData.isUrgent}
-            onChange={(e) => handleChange('isUrgent', e.target.checked)}
-            className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-          />
-          <label htmlFor="isUrgent" className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
-            <AlertCircle className="w-4 h-4 text-red-500" />
-            Marcar como urgente
-          </label>
-        </div>
       </form>
     </Modal>
   );

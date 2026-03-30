@@ -1,16 +1,15 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Filter, SlidersHorizontal, X } from 'lucide-react';
+import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { MachineCard } from './MachineCard';
 import { Button } from '../common/Button';
-import { Input, Select } from '../common/Input';
+import { Select } from '../common/Input';
 import { MACHINE_STATUS, MACHINE_STATUS_LABELS } from '../../utils/constants';
 import { searchItems, filterByStatus } from '../../utils/helpers';
 
 const sortOptions = [
-  { value: 'newest', label: 'Newest First' },
-  { value: 'oldest', label: 'Oldest First' },
-  { value: 'urgent', label: 'Urgent First' },
-  { value: 'status', label: 'By Status' },
+  { value: 'newest', label: 'Mais Recentes' },
+  { value: 'oldest', label: 'Mais Antigas' },
+  { value: 'status', label: 'Por Status' },
 ];
 
 export function MachineList({ machines, searchQuery = '' }) {
@@ -22,9 +21,9 @@ export function MachineList({ machines, searchQuery = '' }) {
   const filteredMachines = useMemo(() => {
     let result = [...machines];
     
-    // Search
+    // Search by serial number, brand, model
     if (searchTerm) {
-      result = searchItems(result, searchTerm, ['serialNumber', 'brand', 'model', 'problemDescription']);
+      result = searchItems(result, searchTerm, ['serialNumber', 'brand', 'model']);
     }
     
     // Status filter
@@ -39,10 +38,6 @@ export function MachineList({ machines, searchQuery = '' }) {
           return new Date(b.createdAt) - new Date(a.createdAt);
         case 'oldest':
           return new Date(a.createdAt) - new Date(b.createdAt);
-        case 'urgent':
-          if (a.isUrgent && !b.isUrgent) return -1;
-          if (!a.isUrgent && b.isUrgent) return 1;
-          return new Date(b.createdAt) - new Date(a.createdAt);
         case 'status':
           return a.status.localeCompare(b.status);
         default:
@@ -54,7 +49,7 @@ export function MachineList({ machines, searchQuery = '' }) {
   }, [machines, searchTerm, statusFilter, sortBy]);
 
   const statusOptions = [
-    { value: 'all', label: 'All Status' },
+    { value: 'all', label: 'Todos os Status' },
     ...Object.values(MACHINE_STATUS).map(status => ({
       value: status,
       label: MACHINE_STATUS_LABELS[status]
@@ -71,7 +66,7 @@ export function MachineList({ machines, searchQuery = '' }) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Buscar por série, marca, modelo..."
+            placeholder="Buscar por número de série..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"

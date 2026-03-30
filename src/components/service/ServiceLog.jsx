@@ -1,10 +1,8 @@
 import React from 'react';
 import { 
   Wrench, 
-  Puzzle, 
   ClipboardCheck, 
   FileText, 
-  Camera, 
   Clock,
   User
 } from 'lucide-react';
@@ -13,18 +11,14 @@ import { formatDateTime } from '../../utils/helpers';
 
 const typeIcons = {
   [SERVICE_ENTRY_TYPES.ACTION]: Wrench,
-  [SERVICE_ENTRY_TYPES.PART_REPLACED]: Puzzle,
   [SERVICE_ENTRY_TYPES.TEST]: ClipboardCheck,
   [SERVICE_ENTRY_TYPES.NOTE]: FileText,
-  [SERVICE_ENTRY_TYPES.PHOTO]: Camera,
 };
 
 const typeColors = {
   [SERVICE_ENTRY_TYPES.ACTION]: 'bg-blue-100 text-blue-600',
-  [SERVICE_ENTRY_TYPES.PART_REPLACED]: 'bg-purple-100 text-purple-600',
   [SERVICE_ENTRY_TYPES.TEST]: 'bg-green-100 text-green-600',
   [SERVICE_ENTRY_TYPES.NOTE]: 'bg-gray-100 text-gray-600',
-  [SERVICE_ENTRY_TYPES.PHOTO]: 'bg-orange-100 text-orange-600',
 };
 
 export function ServiceLog({ entries = [] }) {
@@ -32,8 +26,8 @@ export function ServiceLog({ entries = [] }) {
     return (
       <div className="text-center py-8 text-gray-500">
         <Clock className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-        <p>No service history yet</p>
-        <p className="text-sm">Updates will appear here</p>
+        <p>Nenhum histórico ainda</p>
+        <p className="text-sm">Registros aparecerão aqui</p>
       </div>
     );
   }
@@ -66,36 +60,7 @@ export function ServiceLog({ entries = [] }) {
                   </p>
                   <p className="text-gray-700 mt-1">{entry.description}</p>
                   
-                  {/* Parts used */}
-                  {entry.partsUsed && entry.partsUsed.length > 0 && (
-                    <div className="mt-2 space-y-1">
-                      <p className="text-xs font-medium text-gray-500">Parts used:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {entry.partsUsed.map((part, idx) => (
-                          <span 
-                            key={idx}
-                            className="inline-flex items-center px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded"
-                          >
-                            {part.name} x{part.quantity}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
 
-                  {/* Photos */}
-                  {entry.photos && entry.photos.length > 0 && (
-                    <div className="mt-2 flex gap-2">
-                      {entry.photos.map((photo, idx) => (
-                        <img
-                          key={idx}
-                          src={photo}
-                          alt={`Service photo ${idx + 1}`}
-                          className="w-16 h-16 object-cover rounded-lg border border-gray-200"
-                        />
-                      ))}
-                    </div>
-                  )}
                 </div>
               </div>
               
@@ -104,10 +69,10 @@ export function ServiceLog({ entries = [] }) {
                   <Clock className="w-3 h-3" />
                   {formatDateTime(entry.timestamp)}
                 </span>
-                {entry.createdBy && (
+                {entry.technician && (
                   <span className="flex items-center gap-1">
                     <User className="w-3 h-3" />
-                    {entry.createdBy}
+                    {entry.technician}
                   </span>
                 )}
               </div>

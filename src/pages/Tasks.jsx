@@ -23,6 +23,7 @@ export function Tasks() {
     priority: 'medium',
     dueDate: getTodayDateString(),
     machineId: '',
+    futureNote: '', // Campo especial: Observação Futura
   });
 
   const filteredTarefas = tasks.filter(task => {
@@ -72,6 +73,7 @@ export function Tasks() {
       priority: 'medium',
       dueDate: getTodayDateString(),
       machineId: '',
+      futureNote: '',
     });
   };
 
@@ -83,6 +85,7 @@ export function Tasks() {
       priority: task.priority,
       dueDate: task.dueDate ? task.dueDate.split('T')[0] : '',
       machineId: task.machineId || '',
+      futureNote: task.futureNote || '',
     });
     setIsFormOpen(true);
   };
@@ -198,6 +201,15 @@ export function Tasks() {
                       </span>
                     )}
                   </div>
+                  
+                  {/* Observação Futura */}
+                  {task.futureNote && (
+                    <div className="mt-2 p-2 bg-purple-50 border border-purple-200 rounded-lg">
+                      <p className="text-xs text-purple-700">
+                        <span className="font-medium">Observação Futura:</span> {task.futureNote}
+                      </p>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="flex items-center gap-1">
@@ -289,6 +301,23 @@ export function Tasks() {
             onChange={(e) => setFormData({ ...formData, machineId: e.target.value })}
             options={machineOptions}
           />
+          
+          {/* Campo Observação Futura */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              Observação Futura (Opcional)
+            </label>
+            <p className="text-xs text-gray-500">
+              Ex: "Quando chegar peça X, instalar na máquina série Y"
+            </p>
+            <textarea
+              value={formData.futureNote}
+              onChange={(e) => setFormData({ ...formData, futureNote: e.target.value })}
+              placeholder="Adicione uma observação para o futuro..."
+              rows={2}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            />
+          </div>
         </form>
       </Modal>
 

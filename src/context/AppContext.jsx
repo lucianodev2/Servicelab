@@ -1,13 +1,12 @@
 import React, { createContext, useContext, useCallback } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { sampleMachines, sampleParts, sampleTasks } from '../data/sampleData';
+import { sampleMachines, sampleTasks } from '../data/sampleData';
 import { generateId, getTodayISO } from '../utils/helpers';
 
 const AppContext = createContext();
 
 export function AppProvider({ children }) {
   const [machines, setMachines] = useLocalStorage('lab_machines', sampleMachines);
-  const [parts, setParts] = useLocalStorage('lab_parts', sampleParts);
   const [tasks, setTasks] = useLocalStorage('lab_tasks', sampleTasks);
 
   // Machine operations
@@ -20,10 +19,9 @@ export function AppProvider({ children }) {
       serviceLog: [{
         id: generateId(),
         type: 'action',
-        description: 'Machine registered in system',
-        partsUsed: [],
-        timestamp: getTodayISO(),
-        createdBy: 'Technician'
+        description: 'Máquina registrada no sistema',
+        technician: machineData.technician || 'Técnico',
+        timestamp: getTodayISO()
       }]
     };
     setMachines(prev => [newMachine, ...prev]);
@@ -78,26 +76,6 @@ export function AppProvider({ children }) {
     return newPhoto;
   }, [setMachines]);
 
-  // Parts operations
-  const addPart = useCallback((partData) => {
-    const newPart = {
-      ...partData,
-      id: generateId()
-    };
-    setParts(prev => [newPart, ...prev]);
-    return newPart;
-  }, [setParts]);
-
-  const updatePart = useCallback((id, updates) => {
-    setParts(prev => prev.map(part => 
-      part.id === id ? { ...part, ...updates } : part
-    ));
-  }, [setParts]);
-
-  const deletePart = useCallback((id) => {
-    setParts(prev => prev.filter(part => part.id !== id));
-  }, [setParts]);
-
   // Task operations
   const addTask = useCallback((taskData) => {
     const newTask = {
@@ -144,40 +122,26 @@ export function AppProvider({ children }) {
 
   // Statistics
   const getStats = useCallback(() => {
-    const today = new Date().toDateString();
     return {
       totalMachines: machines.length,
-      inProgress: machines.filter(m => 
-        ['received', 'diagnosis', 'waiting_parts', 'in_repair'].includes(m.status)
-      ).length,
+      inMaintenance: machines.filter(m => m.status === 'maintenance').length,
+      waitingParts: machines.filter(m => m.status === 'waiting_parts').length,
+      inTesting: machines.filter(m => m.status === 'testing').length,
+      ready: machines.filter(m => m.status === 'ready').length,
       completed: machines.filter(m => m.status === 'completed').length,
-      delivered: machines.filter(m => m.status === 'delivered').length,
-      urgentMachines: machines.filter(m => m.isUrgent).length,
-      pendingParts: parts.filter(p => p.status === 'requested').length,
-      completedToday: machines.filter(m => {
-        const completedEntry = m.serviceLog.find(e => 
-          e.description.toLowerCase().includes('completed') || 
-          e.description.toLowerCase().includes('finished')
-        );
-        return completedEntry && new Date(completedEntry.timestamp).toDateString() === today;
-      }).length,
       pendingTasks: tasks.filter(t => t.status === 'pending').length,
       highPriorityTasks: tasks.filter(t => t.priority === 'high' && t.status === 'pending').length
     };
-  }, [machines, parts, tasks]);
+  }, [machines, tasks]);
 
   const value = {
     machines,
-    parts,
     tasks,
     addMachine,
     updateMachine,
     deleteMachine,
     addServiceEntry,
     addMachinePhoto,
-    addPart,
-    updatePart,
-    deletePart,
     addTask,
     updateTask,
     deleteTask,

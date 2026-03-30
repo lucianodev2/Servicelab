@@ -2,12 +2,13 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Printer, 
-  Package, 
   CheckSquare, 
-  AlertCircle,
   Clock,
-  TrendingUp,
-  Activity
+  Activity,
+  Wrench,
+  Package,
+  TestTube,
+  Truck
 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { StatusBadge } from '../components/machines/StatusBadge';
@@ -45,14 +46,8 @@ function StatCard({ title, value, subtitle, icon: Icon, color, onClick }) {
 
 export function Dashboard() {
   const navigate = useNavigate();
-  const { machines, parts, tasks, getStats } = useApp();
+  const { machines, tasks, getStats } = useApp();
   const stats = getStats();
-
-  // Get urgent machines
-  const urgentMachines = machines.filter(m => m.isUrgent).slice(0, 3);
-
-  // Get pending parts
-  const pendingParts = parts.filter(p => p.status === 'requested').slice(0, 3);
 
   // Get high priority pending tasks
   const highPriorityTasks = tasks
@@ -77,82 +72,51 @@ export function Dashboard() {
         <p className="text-gray-500 mt-1">Visão geral das operações do seu laboratório</p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Stats Grid - Novos cards conforme solicitado */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <StatCard
-          title="Em Progresso"
-          value={stats.inProgress}
+          title="Em Manutenção"
+          value={stats.inMaintenance}
           subtitle="Reparos ativos"
-          icon={Printer}
+          icon={Wrench}
           color="blue"
           onClick={() => navigate('/machines')}
         />
         <StatCard
-          title="Peças Pendentes"
-          value={stats.pendingParts}
-          subtitle="Aguardando entrega"
+          title="Aguardando Peça"
+          value={stats.waitingParts}
+          subtitle="Peças pendentes"
           icon={Package}
           color="yellow"
-          onClick={() => navigate('/parts')}
+          onClick={() => navigate('/machines')}
         />
         <StatCard
-          title="Tarefas Pendentes"
+          title="Em Teste"
+          value={stats.inTesting}
+          subtitle="Testando equipamentos"
+          icon={TestTube}
+          color="purple"
+          onClick={() => navigate('/machines')}
+        />
+        <StatCard
+          title="Prontas"
+          value={stats.ready}
+          subtitle="Para entrega"
+          icon={Truck}
+          color="green"
+          onClick={() => navigate('/machines')}
+        />
+        <StatCard
+          title="Tarefas"
           value={stats.pendingTasks}
-          subtitle="Para fazer hoje"
+          subtitle="Pendentes"
           icon={CheckSquare}
           color="purple"
           onClick={() => navigate('/tasks')}
         />
-        <StatCard
-          title="Urgente"
-          value={stats.urgentMachines}
-          subtitle="Precisam de atenção"
-          icon={AlertCircle}
-          color="red"
-          onClick={() => navigate('/machines')}
-        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Urgent Machines */}
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Máquinas Urgentes</h3>
-            {stats.urgentMachines > 0 && (
-              <span className="text-sm text-red-600 font-medium">
-                {stats.urgentMachines} precisam de atenção
-              </span>
-            )}
-          </div>
-          
-          {urgentMachines.length > 0 ? (
-            <div className="space-y-3">
-              {urgentMachines.map(machine => (
-                <div
-                  key={machine.id}
-                  onClick={() => navigate(`/machines/${machine.id}`)}
-                  className="flex items-center justify-between p-3 bg-red-50 rounded-lg cursor-pointer hover:bg-red-100 transition-colors"
-                >
-                  <div>
-                    <p className="font-medium text-gray-900">
-                      {machine.brand} {machine.model}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {truncateText(machine.problemDescription, 50)}
-                    </p>
-                  </div>
-                  <StatusBadge status={machine.status} />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              <CheckSquare className="w-12 h-12 mx-auto mb-2 text-green-400" />
-              <p>Nenhuma máquina urgente</p>
-            </div>
-          )}
-        </Card>
-
         {/* Today's Tasks */}
         <Card>
           <div className="flex items-center justify-between mb-4">
@@ -188,45 +152,6 @@ export function Dashboard() {
             <div className="text-center py-8 text-gray-500">
               <CheckSquare className="w-12 h-12 mx-auto mb-2 text-green-400" />
               <p>Tudo em dia!</p>
-            </div>
-          )}
-        </Card>
-
-        {/* Pending Parts */}
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Peças Pendentes</h3>
-            <button
-              onClick={() => navigate('/parts')}
-              className="text-sm text-primary-600 hover:text-primary-700"
-            >
-              Ver todas
-            </button>
-          </div>
-          
-          {pendingParts.length > 0 ? (
-            <div className="space-y-2">
-              {pendingParts.map(part => (
-                <div
-                  key={part.id}
-                  className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg"
-                >
-                  <div>
-                    <p className="font-medium text-gray-900">{part.name}</p>
-                    <p className="text-xs text-gray-500">
-                      Solicitado {formatRelativeTime(part.requestedDate)}
-                    </p>
-                  </div>
-                  <span className="text-xs font-medium text-yellow-700 bg-yellow-200 px-2 py-1 rounded">
-                    Aguardando
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              <Package className="w-12 h-12 mx-auto mb-2 text-green-400" />
-              <p>Nenhuma peça pendente</p>
             </div>
           )}
         </Card>

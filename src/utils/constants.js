@@ -1,28 +1,26 @@
+// Novos status conforme solicitado
 export const MACHINE_STATUS = {
-  RECEIVED: 'received',
-  DIAGNOSIS: 'diagnosis',
+  MAINTENANCE: 'maintenance',
   WAITING_PARTS: 'waiting_parts',
-  IN_REPAIR: 'in_repair',
-  COMPLETED: 'completed',
-  DELIVERED: 'delivered'
+  TESTING: 'testing',
+  READY: 'ready',
+  COMPLETED: 'completed'
 };
 
 export const MACHINE_STATUS_LABELS = {
-  [MACHINE_STATUS.RECEIVED]: 'Recebido',
-  [MACHINE_STATUS.DIAGNOSIS]: 'Em Diagnóstico',
-  [MACHINE_STATUS.WAITING_PARTS]: 'Aguardando Peças',
-  [MACHINE_STATUS.IN_REPAIR]: 'Em Reparo',
-  [MACHINE_STATUS.COMPLETED]: 'Concluído',
-  [MACHINE_STATUS.DELIVERED]: 'Entregue'
+  [MACHINE_STATUS.MAINTENANCE]: 'Em Manutenção',
+  [MACHINE_STATUS.WAITING_PARTS]: 'Aguardando Peça',
+  [MACHINE_STATUS.TESTING]: 'Em Teste',
+  [MACHINE_STATUS.READY]: 'Pronta para Entrega',
+  [MACHINE_STATUS.COMPLETED]: 'Finalizada'
 };
 
 export const MACHINE_STATUS_COLORS = {
-  [MACHINE_STATUS.RECEIVED]: 'status-received',
-  [MACHINE_STATUS.DIAGNOSIS]: 'status-diagnosis',
-  [MACHINE_STATUS.WAITING_PARTS]: 'status-waiting',
-  [MACHINE_STATUS.IN_REPAIR]: 'status-repair',
-  [MACHINE_STATUS.COMPLETED]: 'status-completed',
-  [MACHINE_STATUS.DELIVERED]: 'status-delivered'
+  [MACHINE_STATUS.MAINTENANCE]: 'bg-blue-500 text-white',
+  [MACHINE_STATUS.WAITING_PARTS]: 'bg-yellow-500 text-white',
+  [MACHINE_STATUS.TESTING]: 'bg-purple-500 text-white',
+  [MACHINE_STATUS.READY]: 'bg-green-500 text-white',
+  [MACHINE_STATUS.COMPLETED]: 'bg-emerald-600 text-white'
 };
 
 export const LOCATION_OPTIONS = [
@@ -71,17 +69,16 @@ export const PART_STATUS_COLORS = {
   [PART_STATUS.ARRIVED]: 'bg-blue-100 text-blue-800'
 };
 
-export const BRAND_OPTIONS = [
-  'HP',
-  'Canon',
-  'Epson',
-  'Brother',
-  'Lexmark',
-  'Samsung',
-  'Xerox',
-  'Ricoh',
-  'Kyocera',
-  'Sharp',
-  'Konica Minolta',
-  'Other'
-];
+// Modelos atualizados conforme solicitado
+export const BRAND_MODELS = {
+  'Samsung': ['4070', '4080'],
+  'Kyocera': ['3040', '3655'],
+  'HP': ['42540', '4003'],
+  'Xerox': ['7025', '7030', '8030']
+};
+
+// Lista de marcas para dropdown
+export const BRAND_OPTIONS = Object.keys(BRAND_MODELS);
+
+// Função para obter modelos de uma marca
+export const getModelsByBrand = (brand) => BRAND_MODELS[brand] || [];

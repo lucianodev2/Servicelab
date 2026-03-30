@@ -50,7 +50,8 @@ export function Machines() {
       {/* Floating Action Button for Mobile */}
       <button
         onClick={() => setIsFormOpen(true)}
-        className="sm:hidden fixed bottom-6 right-6 w-14 h-14 bg-primary-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-primary-700 transition-colors z-40"
+        className="sm:hidden fixed bottom-6 right-6 w-14 h-14 text-white rounded-full shadow-lg flex items-center justify-center transition-colors z-40"
+        style={{ background: 'linear-gradient(135deg, #1e88e5 0%, #7b1fa2 100%)' }}
       >
         <Plus className="w-6 h-6" />
       </button>

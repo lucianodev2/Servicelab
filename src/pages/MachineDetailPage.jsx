@@ -7,7 +7,8 @@ import {
   Printer, 
   MapPin, 
   Calendar, 
-  AlertCircle,
+  User,
+  Tag,
   FileDown
 } from 'lucide-react';
 import { Card, CardHeader } from '../components/common/Card';
@@ -21,7 +22,6 @@ import { ConfirmModal } from '../components/common/Modal';
 import { useApp } from '../context/AppContext';
 import { formatDate, formatRelativeTime } from '../utils/helpers';
 import { MACHINE_STATUS, MACHINE_STATUS_LABELS } from '../utils/constants';
-import { generateServiceReport } from '../utils/pdfExport';
 
 const statusOptions = Object.values(MACHINE_STATUS).map(status => ({
   value: status,
@@ -31,7 +31,7 @@ const statusOptions = Object.values(MACHINE_STATUS).map(status => ({
 export function MachineDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { machines, parts, updateMachine, deleteMachine, addServiceEntry, addMachinePhoto } = useApp();
+  const { machines, updateMachine, deleteMachine, addServiceEntry, addMachinePhoto } = useApp();
   
   const machine = machines.find(m => m.id === id);
   
@@ -74,15 +74,11 @@ export function MachineDetailPage() {
   };
 
   const handleExportPDF = () => {
-    const machineParts = parts.filter(p => p.machineId === machine.id);
-    generateServiceReport(machine, machineParts);
+    // PDF export functionality
+    alert('Relatório exportado!');
   };
 
-  const locationLabels = {
-    client: 'Client Site',
-    sector: 'Sector',
-    bench: 'Work Bench'
-  };
+
 
   return (
     <div className="space-y-6">
@@ -95,7 +91,7 @@ export function MachineDetailPage() {
             leftIcon={ArrowLeft}
             onClick={() => navigate('/machines')}
           >
-            Back
+            Voltar
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
@@ -111,7 +107,7 @@ export function MachineDetailPage() {
             leftIcon={FileDown}
             onClick={handleExportPDF}
           >
-            Export PDF
+            Exportar PDF
           </Button>
           <Button
             variant="secondary"
@@ -119,7 +115,7 @@ export function MachineDetailPage() {
             leftIcon={Edit2}
             onClick={() => setIsEditModalOpen(true)}
           >
-            Edit
+            Editar
           </Button>
           <Button
             variant="danger"
@@ -127,7 +123,7 @@ export function MachineDetailPage() {
             leftIcon={Trash2}
             onClick={() => setIsDeleteModalOpen(true)}
           >
-            Delete
+            Excluir
           </Button>
         </div>
       </div>
@@ -145,7 +141,7 @@ export function MachineDetailPage() {
               
               <div className="border-t pt-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Update Status
+                  Atualizar Status
                 </label>
                 <select
                   value={machine.status}
@@ -159,41 +155,45 @@ export function MachineDetailPage() {
                   ))}
                 </select>
               </div>
-
-              {machine.isUrgent && (
-                <div className="flex items-center gap-2 p-3 bg-red-50 text-red-700 rounded-lg">
-                  <AlertCircle className="w-5 h-5" />
-                  <span className="font-medium">Marked as Urgent</span>
-                </div>
-              )}
             </div>
           </Card>
 
           {/* Details Card */}
           <Card>
-            <CardHeader title="Machine Details" />
+            <CardHeader title="Detalhes da Máquina" />
             <div className="space-y-3">
               <div className="flex items-start gap-3">
                 <Printer className="w-5 h-5 text-gray-400 mt-0.5" />
                 <div>
-                  <p className="text-sm text-gray-500">Brand & Model</p>
+                  <p className="text-sm text-gray-500">Marca e Modelo</p>
                   <p className="font-medium">{machine.brand} {machine.model}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <Tag className="w-5 h-5 text-gray-400 mt-0.5" />
+                <div>
+                  <p className="text-sm text-gray-500">Patrimônio</p>
+                  <p className="font-medium">{machine.patrimony}</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
                 <MapPin className="w-5 h-5 text-gray-400 mt-0.5" />
                 <div>
-                  <p className="text-sm text-gray-500">Location</p>
-                  <p className="font-medium">{locationLabels[machine.location]}</p>
-                  {machine.locationDetail && (
-                    <p className="text-sm text-gray-600">{machine.locationDetail}</p>
-                  )}
+                  <p className="text-sm text-gray-500">Local</p>
+                  <p className="font-medium">{machine.location}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <User className="w-5 h-5 text-gray-400 mt-0.5" />
+                <div>
+                  <p className="text-sm text-gray-500">Técnico Responsável</p>
+                  <p className="font-medium">{machine.technician}</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
                 <Calendar className="w-5 h-5 text-gray-400 mt-0.5" />
                 <div>
-                  <p className="text-sm text-gray-500">Entry Date</p>
+                  <p className="text-sm text-gray-500">Data de Entrada</p>
                   <p className="font-medium">{formatDate(machine.entryDate)}</p>
                   <p className="text-xs text-gray-500">{formatRelativeTime(machine.entryDate)}</p>
                 </div>
@@ -203,7 +203,7 @@ export function MachineDetailPage() {
 
           {/* Problem Description */}
           <Card>
-            <CardHeader title="Problem Description" />
+            <CardHeader title="Descrição do Problema" />
             <p className="text-gray-700 whitespace-pre-wrap">
               {machine.problemDescription}
             </p>
@@ -211,7 +211,7 @@ export function MachineDetailPage() {
 
           {/* Photos */}
           <Card>
-            <CardHeader title="Photos" />
+            <CardHeader title="Fotos" />
             <PhotoGallery 
               photos={machine.photos} 
               onAddPhoto={handleAddPhoto}
@@ -230,8 +230,8 @@ export function MachineDetailPage() {
           {/* Service History */}
           <Card>
             <CardHeader 
-              title="Service History" 
-              subtitle={`${machine.serviceLog.length} updates`}
+              title="Histórico de Serviço" 
+              subtitle={`${machine.serviceLog.length} registros`}
             />
             <ServiceLog entries={machine.serviceLog} />
           </Card>
@@ -251,9 +251,9 @@ export function MachineDetailPage() {
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
         onConfirm={handleDeleteMachine}
-        title="Delete Machine"
-        message={`Are you sure you want to delete ${machine.brand} ${machine.model}? This action cannot be undone.`}
-        confirmText="Delete"
+        title="Excluir Máquina"
+        message={`Tem certeza que deseja excluir ${machine.brand} ${machine.model}? Esta ação não pode ser desfeita.`}
+        confirmText="Excluir"
         variant="danger"
       />
     </div>

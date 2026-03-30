@@ -1,4 +1,4 @@
-import { MACHINE_STATUS, PART_STATUS, SERVICE_ENTRY_TYPES } from '../utils/constants';
+import { MACHINE_STATUS, SERVICE_ENTRY_TYPES } from '../utils/constants';
 import { generateId, getTodayISO } from '../utils/helpers';
 
 const today = getTodayISO();
@@ -6,35 +6,34 @@ const yesterday = new Date(Date.now() - 86400000).toISOString();
 const twoDaysAgo = new Date(Date.now() - 172800000).toISOString();
 const lastWeek = new Date(Date.now() - 604800000).toISOString();
 
+// Novos modelos conforme solicitado
 export const sampleMachines = [
   {
     id: generateId(),
     serialNumber: 'SN123456789',
-    brand: 'HP',
-    model: 'LaserJet Pro M404n',
-    location: 'bench',
-    locationDetail: 'Bench A3',
+    brand: 'Samsung',
+    model: '4070',
+    patrimony: 'PAT-001',
+    location: 'Laboratório',
+    technician: 'João Silva',
     entryDate: twoDaysAgo,
-    problemDescription: 'Paper jam error persists even after clearing. Making unusual grinding noise.',
-    status: MACHINE_STATUS.IN_REPAIR,
-    isUrgent: true,
+    problemDescription: 'Erro de atolamento de papel persiste mesmo após limpeza. Ruído de moagem incomum.',
+    status: MACHINE_STATUS.MAINTENANCE,
     photos: [],
     serviceLog: [
       {
         id: generateId(),
         type: SERVICE_ENTRY_TYPES.ACTION,
-        description: 'Machine received and initial inspection performed',
-        partsUsed: [],
-        timestamp: twoDaysAgo,
-        createdBy: 'Technician'
+        description: 'Máquina recebida e inspeção inicial realizada',
+        technician: 'João Silva',
+        timestamp: twoDaysAgo
       },
       {
         id: generateId(),
         type: SERVICE_ENTRY_TYPES.NOTE,
-        description: 'Found paper debris in fuser area. Need to disassemble for thorough cleaning.',
-        partsUsed: [],
-        timestamp: yesterday,
-        createdBy: 'Technician'
+        description: 'Encontrado resíduo de papel na área do fusor. Necessário desmontar para limpeza completa.',
+        technician: 'João Silva',
+        timestamp: yesterday
       }
     ],
     createdAt: twoDaysAgo,
@@ -43,31 +42,29 @@ export const sampleMachines = [
   {
     id: generateId(),
     serialNumber: 'CN987654321',
-    brand: 'Canon',
-    model: 'imageRUNNER C3226i',
-    location: 'client',
-    locationDetail: 'Accounting Dept - Floor 2',
+    brand: 'Kyocera',
+    model: '3655',
+    patrimony: 'PAT-002',
+    location: 'Cliente - Contabilidade',
+    technician: 'Maria Santos',
     entryDate: lastWeek,
-    problemDescription: 'Color prints have streaks. Cyan toner not registering properly.',
+    problemDescription: 'Impressões coloridas com listras. Toner ciano não registrando corretamente.',
     status: MACHINE_STATUS.WAITING_PARTS,
-    isUrgent: false,
     photos: [],
     serviceLog: [
       {
         id: generateId(),
         type: SERVICE_ENTRY_TYPES.ACTION,
-        description: 'Diagnosis completed - cyan drum unit faulty',
-        partsUsed: [],
-        timestamp: lastWeek,
-        createdBy: 'Technician'
+        description: 'Diagnóstico concluído - unidade de cilindro ciano com defeito',
+        technician: 'Maria Santos',
+        timestamp: lastWeek
       },
       {
         id: generateId(),
         type: SERVICE_ENTRY_TYPES.NOTE,
-        description: 'Ordered replacement cyan drum unit (Part #C-EXV55C)',
-        partsUsed: [],
-        timestamp: yesterday,
-        createdBy: 'Technician'
+        description: 'Solicitado cilindro ciano de reposição',
+        technician: 'Maria Santos',
+        timestamp: yesterday
       }
     ],
     createdAt: lastWeek,
@@ -75,24 +72,23 @@ export const sampleMachines = [
   },
   {
     id: generateId(),
-    serialNumber: 'EP555666777',
-    brand: 'Epson',
-    model: 'WorkForce Pro WF-C5790',
-    location: 'sector',
-    locationDetail: 'Sales Office',
+    serialNumber: 'HP555666777',
+    brand: 'HP',
+    model: '42540',
+    patrimony: 'PAT-003',
+    location: 'Setor - Vendas',
+    technician: 'Pedro Costa',
     entryDate: yesterday,
-    problemDescription: 'Scanner glass cracked. ADF not feeding properly.',
-    status: MACHINE_STATUS.DIAGNOSIS,
-    isUrgent: false,
+    problemDescription: 'Vidro do scanner trincado. ADF não alimentando corretamente.',
+    status: MACHINE_STATUS.TESTING,
     photos: [],
     serviceLog: [
       {
         id: generateId(),
         type: SERVICE_ENTRY_TYPES.ACTION,
-        description: 'Initial assessment - scanner assembly needs replacement',
-        partsUsed: [],
-        timestamp: yesterday,
-        createdBy: 'Technician'
+        description: 'Avaliação inicial - conjunto do scanner necessita substituição',
+        technician: 'Pedro Costa',
+        timestamp: yesterday
       }
     ],
     createdAt: yesterday,
@@ -100,24 +96,23 @@ export const sampleMachines = [
   },
   {
     id: generateId(),
-    serialNumber: 'BR111222333',
-    brand: 'Brother',
-    model: 'HL-L8360CDW',
-    location: 'bench',
-    locationDetail: 'Bench B1',
+    serialNumber: 'XRX111222333',
+    brand: 'Xerox',
+    model: '7025',
+    patrimony: 'PAT-004',
+    location: 'Laboratório',
+    technician: 'Ana Paula',
     entryDate: today,
-    problemDescription: 'Network connectivity issues. Cannot connect to WiFi.',
-    status: MACHINE_STATUS.RECEIVED,
-    isUrgent: false,
+    problemDescription: 'Problemas de conectividade de rede. Não conecta ao WiFi.',
+    status: MACHINE_STATUS.MAINTENANCE,
     photos: [],
     serviceLog: [
       {
         id: generateId(),
         type: SERVICE_ENTRY_TYPES.ACTION,
-        description: 'Machine logged into system',
-        partsUsed: [],
-        timestamp: today,
-        createdBy: 'Technician'
+        description: 'Máquina registrada no sistema',
+        technician: 'Ana Paula',
+        timestamp: today
       }
     ],
     createdAt: today,
@@ -125,88 +120,34 @@ export const sampleMachines = [
   },
   {
     id: generateId(),
-    serialNumber: 'XRX444555666',
-    brand: 'Xerox',
-    model: 'VersaLink C7020',
-    location: 'client',
-    locationDetail: 'Main Office - Reception',
+    serialNumber: 'SAM444555666',
+    brand: 'Samsung',
+    model: '4080',
+    patrimony: 'PAT-005',
+    location: 'Cliente - Recepção',
+    technician: 'João Silva',
     entryDate: lastWeek,
-    problemDescription: 'Complete maintenance service due. Fuser life at 95%.',
-    status: MACHINE_STATUS.COMPLETED,
-    isUrgent: false,
+    problemDescription: 'Manutenção completa devida. Vida útil do fusor em 95%.',
+    status: MACHINE_STATUS.READY,
     photos: [],
     serviceLog: [
       {
         id: generateId(),
         type: SERVICE_ENTRY_TYPES.ACTION,
-        description: 'Full maintenance service performed',
-        partsUsed: [
-          { name: 'Fuser Unit 115R00115', quantity: 1 },
-          { name: 'Transfer Roller', quantity: 1 },
-          { name: 'Waste Toner Container', quantity: 1 }
-        ],
-        timestamp: twoDaysAgo,
-        createdBy: 'Technician'
+        description: 'Serviço de manutenção completo realizado',
+        technician: 'João Silva',
+        timestamp: twoDaysAgo
       },
       {
         id: generateId(),
         type: SERVICE_ENTRY_TYPES.TEST,
-        description: 'Test prints successful. All functions working correctly.',
-        partsUsed: [],
-        timestamp: yesterday,
-        createdBy: 'Technician'
+        description: 'Testes de impressão bem-sucedidos. Todas as funções operando corretamente.',
+        technician: 'João Silva',
+        timestamp: yesterday
       }
     ],
     createdAt: lastWeek,
     updatedAt: yesterday
-  }
-];
-
-export const sampleParts = [
-  {
-    id: generateId(),
-    name: 'HP Fuser Assembly RM2-5678',
-    quantity: 2,
-    status: PART_STATUS.IN_STOCK,
-    machineId: null,
-    requestedDate: null,
-    arrivedDate: null
-  },
-  {
-    id: generateId(),
-    name: 'Canon C-EXV55C Cyan Drum',
-    quantity: 1,
-    status: PART_STATUS.REQUESTED,
-    machineId: sampleMachines[1].id,
-    requestedDate: yesterday,
-    arrivedDate: null
-  },
-  {
-    id: generateId(),
-    name: 'Epson Scanner Assembly',
-    quantity: 0,
-    status: PART_STATUS.REQUESTED,
-    machineId: sampleMachines[2].id,
-    requestedDate: yesterday,
-    arrivedDate: null
-  },
-  {
-    id: generateId(),
-    name: 'Brother Network Card',
-    quantity: 3,
-    status: PART_STATUS.IN_STOCK,
-    machineId: null,
-    requestedDate: null,
-    arrivedDate: null
-  },
-  {
-    id: generateId(),
-    name: 'HP Pickup Roller',
-    quantity: 10,
-    status: PART_STATUS.IN_STOCK,
-    machineId: null,
-    requestedDate: null,
-    arrivedDate: null
   }
 ];
 

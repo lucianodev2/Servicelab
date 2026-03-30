@@ -6,12 +6,11 @@ export function StatusBadge({ status, showDot = true }) {
   const label = MACHINE_STATUS_LABELS[status] || status;
   
   const dotColors = {
-    received: 'bg-gray-500',
-    diagnosis: 'bg-yellow-500',
-    waiting_parts: 'bg-red-500',
-    in_repair: 'bg-blue-500',
-    completed: 'bg-green-500',
-    delivered: 'bg-emerald-600',
+    maintenance: 'bg-blue-500',
+    waiting_parts: 'bg-yellow-500',
+    testing: 'bg-purple-500',
+    ready: 'bg-green-500',
+    completed: 'bg-emerald-600',
   };
 
   return (
