@@ -8,6 +8,7 @@ import { MachineDetailPage } from './pages/MachineDetailPage';
 import { Tasks } from './pages/Tasks';
 import { Notes } from './pages/Notes';
 import { ServiceHistory } from './pages/ServiceHistory';
+import { Tests } from './pages/Tests';
 
 function App() {
   return (
@@ -20,6 +21,8 @@ function App() {
             <Route path="machines/:id" element={<MachineDetailPage />} />
             <Route path="tasks" element={<Tasks />} />
             <Route path="notes" element={<Notes />} />
+            <Route path="history" element={<ServiceHistory />} />
+            <Route path="tests" element={<Tests />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
