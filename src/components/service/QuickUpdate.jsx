@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Send, Wrench, ClipboardCheck, FileText, User } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Send, Wrench, ClipboardCheck, FileText, User, Camera, X } from 'lucide-react';
 import { Button } from '../common/Button';
 import { VoiceInput } from '../common/VoiceInput';
 import { SERVICE_ENTRY_TYPES } from '../../utils/constants';
@@ -15,22 +15,41 @@ export function QuickUpdate({ onSubmit, machineId, defaultTechnician = '' }) {
   const [selectedType, setSelectedType] = useState(SERVICE_ENTRY_TYPES.ACTION);
   const [description, setDescription] = useState('');
   const [technician, setTechnician] = useState(defaultTechnician);
+  const [photos, setPhotos] = useState([]);
+  const fileInputRef = useRef(null);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!description.trim()) return;
+    if (!description.trim() && photos.length === 0) return;
 
     const entry = {
       id: generateId(),
       machineId,
       type: selectedType,
-      description: description.trim(),
+      description: description.trim() || (photos.length > 0 ? 'Fotos do teste/serviço' : ''),
       technician: technician || 'Técnico',
+      photos: photos,
       timestamp: new Date().toISOString(),
     };
 
     onSubmit(entry);
     setDescription('');
+    setPhotos([]);
+  };
+
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files);
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPhotos(prev => [...prev, reader.result]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removePhoto = (index) => {
+    setPhotos(prev => prev.filter((_, i) => i !== index));
   };
 
   return (

@@ -6,6 +6,7 @@ import { Select } from '../common/Input';
 import { MACHINE_STATUS, MACHINE_STATUS_LABELS } from '../../utils/constants';
 import { searchItems, filterByStatus } from '../../utils/helpers';
 import { useApp } from '../../context/AppContext';
+import { MachineForm } from './MachineForm';
 
 const sortOptions = [
   { value: 'newest', label: 'Mais Recentes' },
@@ -19,9 +20,24 @@ export function MachineList({ machines, searchQuery = '' }) {
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
   const [showFilters, setShowFilters] = useState(false);
+  const [editingMachine, setEditingMachine] = useState(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const handleStatusChange = (machineId, newStatus) => {
     updateMachine(machineId, { status: newStatus });
+  };
+
+  const handleEdit = (machine) => {
+    setEditingMachine(machine);
+    setIsEditModalOpen(true);
+  };
+
+  const handleUpdateMachine = (updates) => {
+    if (editingMachine) {
+      updateMachine(editingMachine.id, updates);
+    }
+    setIsEditModalOpen(false);
+    setEditingMachine(null);
   };
 
   const filteredMachines = useMemo(() => {

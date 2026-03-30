@@ -5,6 +5,7 @@ import {
   Printer, 
   CheckSquare, 
   StickyNote,
+  History,
   Settings,
   Menu,
   X
@@ -13,6 +14,7 @@ import {
 const navItems = [
   { path: '/', label: 'Painel', icon: LayoutDashboard },
   { path: '/machines', label: 'Máquinas', icon: Printer },
+  { path: '/history', label: 'Histórico', icon: History },
   { path: '/tasks', label: 'Tarefas', icon: CheckSquare },
   { path: '/notes', label: 'Notas', icon: StickyNote },
 ];

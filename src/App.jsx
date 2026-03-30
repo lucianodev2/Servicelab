@@ -7,6 +7,7 @@ import { Machines } from './pages/Machines';
 import { MachineDetailPage } from './pages/MachineDetailPage';
 import { Tasks } from './pages/Tasks';
 import { Notes } from './pages/Notes';
+import { ServiceHistory } from './pages/ServiceHistory';
 
 function App() {
   return (

@@ -60,6 +60,23 @@ export function ServiceLog({ entries = [] }) {
                   </p>
                   <p className="text-gray-700 mt-1">{entry.description}</p>
                   
+                  {/* Photos */}
+                  {entry.photos && entry.photos.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {entry.photos.map((photo, idx) => (
+                        <img
+                          key={idx}
+                          src={photo}
+                          alt={`Foto ${idx + 1}`}
+                          className="w-20 h-20 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(photo, '_blank');
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
 
                 </div>
               </div>
