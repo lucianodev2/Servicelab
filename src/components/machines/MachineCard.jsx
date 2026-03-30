@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Printer, MapPin, Calendar, User, Clock, ChevronDown, Wrench, Package, TestTube, Truck, CheckCircle, Edit2, MoreVertical } from 'lucide-react';
+import { Printer, MapPin, Calendar, User, Clock, ChevronDown, Wrench, Package, TestTube, Truck, CheckCircle, Edit2 } from 'lucide-react';
 import { Card } from '../common/Card';
 import { StatusBadge } from './StatusBadge';
 import { formatRelativeTime } from '../../utils/helpers';
@@ -63,90 +63,60 @@ export function MachineCard({ machine, onStatusChange, onEdit }) {
           </div>
         </div>
         
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
           {/* Status Badge com dropdown */}
           <div className="relative">
             <button
               onClick={handleStatusClick}
-              className="flex items-center gap-1 hover:opacity-80 transition-opacity"
+              className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors"
             >
               <StatusBadge status={machine.status} />
-              <ChevronDown className="w-4 h-4 text-gray-400" />
+              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${showStatusMenu ? 'rotate-180' : ''}`} />
             </button>
             
             {/* Dropdown de status */}
             {showStatusMenu && (
-              <>
-                <div 
-                  className="fixed inset-0 z-40" 
-                  onClick={(e) => { e.stopPropagation(); setShowStatusMenu(false); }}
-                />
-                <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
-                  <p className="px-3 py-2 text-xs font-medium text-gray-500 border-b border-gray-100">
-                    Alterar Status
-                  </p>
-                  {statusOptions.map((option) => {
-                    const Icon = option.icon;
-                    const isCurrent = machine.status === option.value;
-                    return (
-                      <button
-                        key={option.value}
-                        onClick={(e) => handleStatusSelect(e, option.value)}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors ${
-                          isCurrent ? 'bg-gray-50' : ''
-                        }`}
-                      >
-                        <div className={`w-8 h-8 ${option.color} rounded-lg flex items-center justify-center`}>
-                          <Icon className="w-4 h-4 text-white" />
-                        </div>
-                        <div className="flex-1">
-                          <p className={`text-sm font-medium ${isCurrent ? 'text-gray-900' : 'text-gray-700'}`}>
-                            {option.label}
-                          </p>
-                        </div>
-                        {isCurrent && (
-                          <div className="w-2 h-2 bg-primary-500 rounded-full" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
+              <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-200 z-50 py-2">
+                <p className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Alterar Status
+                </p>
+                {statusOptions.map((option) => {
+                  const Icon = option.icon;
+                  const isCurrent = machine.status === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      onClick={(e) => handleStatusSelect(e, option.value)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors ${
+                        isCurrent ? 'bg-blue-50' : ''
+                      }`}
+                    >
+                      <div className={`w-10 h-10 ${option.color} rounded-lg flex items-center justify-center shadow-sm`}>
+                        <Icon className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <p className={`text-sm font-medium ${isCurrent ? 'text-gray-900' : 'text-gray-700'}`}>
+                          {option.label}
+                        </p>
+                      </div>
+                      {isCurrent && (
+                        <div className="w-2.5 h-2.5 bg-primary-500 rounded-full" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </div>
 
-          {/* Botão de ações (editar) */}
-          <div className="relative">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowActionsMenu(!showActionsMenu);
-                setShowStatusMenu(false);
-              }}
-              className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-            >
-              <MoreVertical className="w-4 h-4" />
-            </button>
-
-            {/* Menu de ações */}
-            {showActionsMenu && (
-              <>
-                <div 
-                  className="fixed inset-0 z-40" 
-                  onClick={(e) => { e.stopPropagation(); setShowActionsMenu(false); }}
-                />
-                <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
-                  <button
-                    onClick={handleEditClick}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-gray-50 transition-colors"
-                  >
-                    <Edit2 className="w-4 h-4 text-gray-500" />
-                    <span className="text-sm text-gray-700">Editar Máquina</span>
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+          {/* Botão editar - sempre visível */}
+          <button
+            onClick={handleEditClick}
+            className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+            title="Editar máquina"
+          >
+            <Edit2 className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
