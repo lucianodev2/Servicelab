@@ -235,7 +235,7 @@ export function Tasks() {
         })}
       </div>
 
-      {filteredTasks.length === 0 && (
+      {filteredTarefas.length === 0 && (
         <div className="text-center py-12 bg-gray-50 rounded-xl">
           <CheckSquare className="w-16 h-16 mx-auto mb-4 text-gray-300" />
           <h3 className="text-lg font-medium text-gray-900 mb-1">
