@@ -5,6 +5,7 @@ import { Button } from '../common/Button';
 import { Select } from '../common/Input';
 import { MACHINE_STATUS, MACHINE_STATUS_LABELS } from '../../utils/constants';
 import { searchItems, filterByStatus } from '../../utils/helpers';
+import { useApp } from '../../context/AppContext';
 
 const sortOptions = [
   { value: 'newest', label: 'Mais Recentes' },
@@ -13,10 +14,15 @@ const sortOptions = [
 ];
 
 export function MachineList({ machines, searchQuery = '' }) {
+  const { updateMachine } = useApp();
   const [searchTerm, setSearchTerm] = useState(searchQuery);
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
   const [showFilters, setShowFilters] = useState(false);
+
+  const handleStatusChange = (machineId, newStatus) => {
+    updateMachine(machineId, { status: newStatus });
+  };
 
   const filteredMachines = useMemo(() => {
     let result = [...machines];
@@ -139,7 +145,11 @@ export function MachineList({ machines, searchQuery = '' }) {
       {filteredMachines.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filteredMachines.map(machine => (
-            <MachineCard key={machine.id} machine={machine} />
+            <MachineCard 
+              key={machine.id} 
+              machine={machine} 
+              onStatusChange={handleStatusChange}
+            />
           ))}
         </div>
       ) : (
