@@ -4,6 +4,7 @@ import {
   LayoutDashboard, 
   Printer, 
   CheckSquare, 
+  StickyNote,
   Settings,
   Menu,
   X
@@ -13,6 +14,7 @@ const navItems = [
   { path: '/', label: 'Painel', icon: LayoutDashboard },
   { path: '/machines', label: 'Máquinas', icon: Printer },
   { path: '/tasks', label: 'Tarefas', icon: CheckSquare },
+  { path: '/notes', label: 'Notas', icon: StickyNote },
 ];
 
 export function Sidebar({ isOpen, onClose }) {
