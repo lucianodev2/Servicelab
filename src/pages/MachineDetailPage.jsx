@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  ArrowLeft, 
-  Edit2, 
-  Trash2, 
-  Printer, 
-  MapPin, 
-  Calendar, 
+import {
+  ArrowLeft,
+  Edit2,
+  Trash2,
+  Printer,
+  MapPin,
+  Calendar,
   User,
   Tag,
-  FileDown
+  FileDown,
 } from 'lucide-react';
 import { Card, CardHeader } from '../components/common/Card';
 import { Button } from '../components/common/Button';
@@ -18,33 +18,35 @@ import { PhotoGallery } from '../components/machines/PhotoGallery';
 import { ServiceLog } from '../components/service/ServiceLog';
 import { QuickUpdate } from '../components/service/QuickUpdate';
 import { MachineForm } from '../components/machines/MachineForm';
+import { CompletionModal } from '../components/machines/CompletionModal';
 import { ConfirmModal } from '../components/common/Modal';
 import { useApp } from '../context/AppContext';
 import { formatDate, formatRelativeTime } from '../utils/helpers';
 import { MACHINE_STATUS, MACHINE_STATUS_LABELS } from '../utils/constants';
+import { ReportService } from '../services/reportService';
 
 const statusOptions = Object.values(MACHINE_STATUS).map(status => ({
   value: status,
-  label: MACHINE_STATUS_LABELS[status]
+  label: MACHINE_STATUS_LABELS[status],
 }));
 
 export function MachineDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { machines, updateMachine, deleteMachine, addServiceEntry, addMachinePhoto } = useApp();
-  
+
   const machine = machines.find(m => m.id === id);
-  
+
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
 
   if (!machine) {
     return (
       <div className="text-center py-12">
-        <h2 className="text-xl font-semibold text-gray-900">Machine not found</h2>
+        <h2 className="text-xl font-semibold text-gray-900">Máquina não encontrada</h2>
         <Button onClick={() => navigate('/machines')} className="mt-4">
-          Back to Machines
+          Voltar para Máquinas
         </Button>
       </div>
     );
@@ -68,21 +70,32 @@ export function MachineDetailPage() {
     addMachinePhoto(machine.id, photoData);
   };
 
+  // Intercepta "Finalizada" — abre o modal de conclusão em vez de salvar direto
   const handleStatusChange = (newStatus) => {
-    updateMachine(machine.id, { status: newStatus });
-    setIsUpdatingStatus(false);
+    if (newStatus === MACHINE_STATUS.COMPLETED) {
+      setShowCompletionModal(true);
+    } else {
+      updateMachine(machine.id, { status: newStatus });
+    }
+  };
+
+  // Chamado ao confirmar o modal: salva status + gera PDF
+  const handleConfirmCompletion = (completionData) => {
+    updateMachine(machine.id, {
+      status: MACHINE_STATUS.COMPLETED,
+      completionData,
+    });
+    ReportService.generateCompletionReport(machine, completionData);
+    setShowCompletionModal(false);
   };
 
   const handleExportPDF = () => {
-    // PDF export functionality
-    alert('Relatório exportado!');
+    ReportService.generateServiceReport(machine, []);
   };
-
-
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Cabeçalho */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Button
@@ -129,23 +142,23 @@ export function MachineDetailPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column - Machine Info */}
+        {/* Coluna esquerda */}
         <div className="lg:col-span-1 space-y-6">
-          {/* Status Card */}
+          {/* Status */}
           <Card>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Status</span>
+                <span className="text-sm text-gray-500">Status Atual</span>
                 <StatusBadge status={machine.status} />
               </div>
-              
+
               <div className="border-t pt-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Atualizar Status
                 </label>
                 <select
                   value={machine.status}
-                  onChange={(e) => handleStatusChange(e.target.value)}
+                  onChange={e => handleStatusChange(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
                   {statusOptions.map(option => (
@@ -154,11 +167,16 @@ export function MachineDetailPage() {
                     </option>
                   ))}
                 </select>
+                {machine.status !== MACHINE_STATUS.COMPLETED && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Selecionar "Finalizada" abrirá o fluxo de conclusão com geração de relatório.
+                  </p>
+                )}
               </div>
             </div>
           </Card>
 
-          {/* Details Card */}
+          {/* Detalhes */}
           <Card>
             <CardHeader title="Detalhes da Máquina" />
             <div className="space-y-3">
@@ -201,36 +219,32 @@ export function MachineDetailPage() {
             </div>
           </Card>
 
-          {/* Problem Description */}
+          {/* Problema */}
           <Card>
             <CardHeader title="Descrição do Problema" />
-            <p className="text-gray-700 whitespace-pre-wrap">
-              {machine.problemDescription}
-            </p>
+            <p className="text-gray-700 whitespace-pre-wrap">{machine.problemDescription}</p>
           </Card>
 
-          {/* Photos */}
+          {/* Fotos */}
           <Card>
             <CardHeader title="Fotos" />
-            <PhotoGallery 
-              photos={machine.photos} 
+            <PhotoGallery
+              photos={machine.photos}
               onAddPhoto={handleAddPhoto}
             />
           </Card>
         </div>
 
-        {/* Right Column - Service Log */}
+        {/* Coluna direita */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Quick Update */}
-          <QuickUpdate 
+          <QuickUpdate
             machineId={machine.id}
             onSubmit={handleAddServiceEntry}
           />
 
-          {/* Service History */}
           <Card>
-            <CardHeader 
-              title="Histórico de Serviço" 
+            <CardHeader
+              title="Histórico de Serviço"
               subtitle={`${machine.serviceLog.length} registros`}
             />
             <ServiceLog entries={machine.serviceLog} />
@@ -238,7 +252,15 @@ export function MachineDetailPage() {
         </div>
       </div>
 
-      {/* Edit Modal */}
+      {/* Modal de Finalização */}
+      <CompletionModal
+        isOpen={showCompletionModal}
+        onClose={() => setShowCompletionModal(false)}
+        onConfirm={handleConfirmCompletion}
+        machine={machine}
+      />
+
+      {/* Modal de Edição */}
       <MachineForm
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
@@ -246,7 +268,7 @@ export function MachineDetailPage() {
         initialData={machine}
       />
 
-      {/* Delete Confirmation */}
+      {/* Confirmação de Exclusão */}
       <ConfirmModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}

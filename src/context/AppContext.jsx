@@ -109,16 +109,24 @@ export function AppProvider({ children }) {
   }, [setTasks]);
 
   const toggleTaskStatus = useCallback((id) => {
-    setTasks(prev => prev.map(task => 
-      task.id === id 
-        ? { 
-            ...task, 
+    setTasks(prev => prev.map(task =>
+      task.id === id
+        ? {
+            ...task,
             status: task.status === 'completed' ? 'pending' : 'completed',
             completedAt: task.status === 'completed' ? null : getTodayISO()
           }
         : task
     ));
   }, [setTasks]);
+
+  const clearAllHistory = useCallback(() => {
+    setMachines(prev => prev.map(machine => ({
+      ...machine,
+      serviceLog: [],
+      updatedAt: getTodayISO(),
+    })));
+  }, [setMachines]);
 
   // Statistics
   const getStats = useCallback(() => {
@@ -146,7 +154,8 @@ export function AppProvider({ children }) {
     updateTask,
     deleteTask,
     toggleTaskStatus,
-    getStats
+    clearAllHistory,
+    getStats,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

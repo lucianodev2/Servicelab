@@ -1,34 +1,18 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Printer, 
-  CheckSquare, 
-  Clock,
-  Activity,
-  Wrench,
-  Package,
-  TestTube,
-  Truck
-} from 'lucide-react';
+import { CheckSquare, Wrench, Package, TestTube, Truck } from 'lucide-react';
 import { Card } from '../components/common/Card';
-import { StatusBadge } from '../components/machines/StatusBadge';
 import { PriorityBadge } from '../components/common/Badge';
 import { useApp } from '../context/AppContext';
-import { formatRelativeTime, truncateText } from '../utils/helpers';
 
-function StatCard({ title, value, subtitle, icon: Icon, color, onClick }) {
-  const colors = {
-    blue: 'bg-blue-50 text-blue-600',
-    green: 'bg-green-50 text-green-600',
-    yellow: 'bg-yellow-50 text-yellow-600',
-    red: 'bg-red-50 text-red-600',
-    purple: 'bg-purple-50 text-purple-600',
-  };
-
+function StatCard({ title, value, subtitle, icon: Icon, colorClass, onClick }) {
   return (
-    <Card 
-      className={`${onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
+    <button
+      type="button"
       onClick={onClick}
+      className="w-full bg-white rounded-xl border border-gray-200 shadow-sm p-4 text-left
+                 cursor-pointer hover:shadow-md hover:border-gray-300 active:scale-[0.97]
+                 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-blue-400"
     >
       <div className="flex items-start justify-between">
         <div>
@@ -36,11 +20,11 @@ function StatCard({ title, value, subtitle, icon: Icon, color, onClick }) {
           <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
           {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
         </div>
-        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${colors[color]}`}>
+        <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${colorClass}`}>
           <Icon className="w-5 h-5" />
         </div>
       </div>
-    </Card>
+    </button>
   );
 }
 
@@ -49,89 +33,80 @@ export function Dashboard() {
   const { machines, tasks, getStats } = useApp();
   const stats = getStats();
 
-  // Get high priority pending tasks
-  const highPriorityTasks = tasks
+  const priorityOrder = { high: 0, medium: 1, low: 2 };
+  const priorityTasks = tasks
     .filter(t => t.status === 'pending')
-    .sort((a, b) => {
-      const priorityOrder = { high: 0, medium: 1, low: 2 };
-      return priorityOrder[a.priority] - priorityOrder[b.priority];
-    })
-    .slice(0, 5);
-
-  // Get recent activity (last 5 service entries)
-  const recentActivity = machines
-    .flatMap(m => m.serviceLog.map(entry => ({ ...entry, machine: m })))
-    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-    .slice(0, 5);
+    .sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority])
+    .slice(0, 6);
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Painel</h1>
-        <p className="text-gray-500 mt-1">Visão geral das operações do seu laboratório</p>
+        <p className="text-gray-500 mt-1">Visão geral das operações do laboratório</p>
       </div>
 
-      {/* Stats Grid - Novos cards conforme solicitado */}
+      {/* Cards de status — cada um navega filtrado */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <StatCard
           title="Em Manutenção"
           value={stats.inMaintenance}
           subtitle="Reparos ativos"
           icon={Wrench}
-          color="blue"
-          onClick={() => navigate('/machines')}
+          colorClass="bg-blue-50 text-blue-600"
+          onClick={() => navigate('/machines?status=maintenance')}
         />
         <StatCard
           title="Aguardando Peça"
           value={stats.waitingParts}
           subtitle="Peças pendentes"
           icon={Package}
-          color="yellow"
-          onClick={() => navigate('/machines')}
+          colorClass="bg-yellow-50 text-yellow-600"
+          onClick={() => navigate('/machines?status=waiting_parts')}
         />
         <StatCard
           title="Em Teste"
           value={stats.inTesting}
-          subtitle="Testando equipamentos"
+          subtitle="Testando"
           icon={TestTube}
-          color="purple"
-          onClick={() => navigate('/machines')}
+          colorClass="bg-purple-50 text-purple-600"
+          onClick={() => navigate('/tests')}
         />
         <StatCard
           title="Prontas"
           value={stats.ready}
           subtitle="Para entrega"
           icon={Truck}
-          color="green"
-          onClick={() => navigate('/machines')}
+          colorClass="bg-green-50 text-green-600"
+          onClick={() => navigate('/machines?status=ready')}
         />
         <StatCard
           title="Tarefas"
           value={stats.pendingTasks}
           subtitle="Pendentes"
           icon={CheckSquare}
-          color="purple"
+          colorClass="bg-violet-50 text-violet-600"
           onClick={() => navigate('/tasks')}
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Today's Tasks */}
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Tarefas de Hoje</h3>
-            <button
-              onClick={() => navigate('/tasks')}
-              className="text-sm text-primary-600 hover:text-primary-700"
-            >
-              Ver todas
-            </button>
-          </div>
-          
-          {highPriorityTasks.length > 0 ? (
-            <div className="space-y-2">
-              {highPriorityTasks.map(task => (
+      {/* Tarefas prioritárias — "Atividade Recente" removida */}
+      <Card>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Tarefas Prioritárias</h3>
+          <button
+            onClick={() => navigate('/tasks')}
+            className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+          >
+            Ver todas
+          </button>
+        </div>
+
+        {priorityTasks.length > 0 ? (
+          <div className="space-y-2">
+            {priorityTasks.map(task => {
+              const machine = machines.find(m => m.id === task.machineId);
+              return (
                 <div
                   key={task.id}
                   className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
@@ -139,59 +114,24 @@ export function Dashboard() {
                   <PriorityBadge priority={task.priority} />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-gray-900 truncate">{task.title}</p>
-                    {task.machineId && (
-                      <p className="text-xs text-gray-500">
-                        {machines.find(m => m.id === task.machineId)?.brand} {machines.find(m => m.id === task.machineId)?.model}
+                    {machine && (
+                      <p className="text-xs text-gray-500 truncate">
+                        {machine.brand} {machine.model}
                       </p>
                     )}
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              <CheckSquare className="w-12 h-12 mx-auto mb-2 text-green-400" />
-              <p>Tudo em dia!</p>
-            </div>
-          )}
-        </Card>
-
-        {/* Recent Activity */}
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Atividade Recente</h3>
+              );
+            })}
           </div>
-          
-          {recentActivity.length > 0 ? (
-            <div className="space-y-3">
-              {recentActivity.map((entry, index) => (
-                <div
-                  key={entry.id}
-                  onClick={() => navigate(`/machines/${entry.machine.id}`)}
-                  className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
-                >
-                  <Activity className="w-4 h-4 text-gray-400 mt-0.5" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-900">
-                      <span className="font-medium">{entry.machine.brand} {entry.machine.model}</span>
-                      {' - '}
-                      {truncateText(entry.description, 40)}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {formatRelativeTime(entry.timestamp)}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              <Clock className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-              <p>Nenhuma atividade recente</p>
-            </div>
-          )}
-        </Card>
-      </div>
+        ) : (
+          <div className="text-center py-10 text-gray-500">
+            <CheckSquare className="w-12 h-12 mx-auto mb-2 text-green-400" />
+            <p className="font-medium">Tudo em dia!</p>
+            <p className="text-sm mt-1">Nenhuma tarefa pendente.</p>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { MachineCard } from './MachineCard';
 import { Button } from '../common/Button';
@@ -14,10 +14,15 @@ const sortOptions = [
   { value: 'status', label: 'Por Status' },
 ];
 
-export function MachineList({ machines, searchQuery = '' }) {
+export function MachineList({ machines, searchQuery = '', initialStatusFilter = 'all' }) {
   const { updateMachine } = useApp();
   const [searchTerm, setSearchTerm] = useState(searchQuery);
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState(initialStatusFilter);
+
+  // Sincroniza quando o param da URL muda (ex: navegação pelos cards do painel)
+  useEffect(() => {
+    setStatusFilter(initialStatusFilter || 'all');
+  }, [initialStatusFilter]);
   const [sortBy, setSortBy] = useState('newest');
   const [showFilters, setShowFilters] = useState(false);
   const [editingMachine, setEditingMachine] = useState(null);

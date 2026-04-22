@@ -12,6 +12,7 @@ export function Machines() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   
   const searchQuery = searchParams.get('search') || '';
+  const statusFromUrl = searchParams.get('status') || 'all';
   const showNewForm = searchParams.get('action') === 'new';
 
   React.useEffect(() => {
@@ -45,7 +46,11 @@ export function Machines() {
         </Button>
       </div>
 
-      <MachineList machines={machines} searchQuery={searchQuery} />
+      <MachineList
+        machines={machines}
+        searchQuery={searchQuery}
+        initialStatusFilter={statusFromUrl}
+      />
 
       {/* Floating Action Button for Mobile */}
       <button
