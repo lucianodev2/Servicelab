@@ -9,6 +9,7 @@ import { Tasks } from './pages/Tasks';
 import { Notes } from './pages/Notes';
 import { ServiceHistory } from './pages/ServiceHistory';
 import { Tests } from './pages/Tests';
+import { ToolWithdrawal } from './pages/ToolWithdrawal';
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
             <Route path="notes" element={<Notes />} />
             <Route path="history" element={<ServiceHistory />} />
             <Route path="tests" element={<Tests />} />
+            <Route path="withdrawals" element={<ToolWithdrawal />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

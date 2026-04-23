@@ -7,16 +7,18 @@ import {
   StickyNote,
   History,
   ClipboardCheck,
+  PackageOpen,
   X,
 } from 'lucide-react';
 
 const navItems = [
-  { path: '/',         label: 'Painel',    icon: LayoutDashboard },
-  { path: '/machines', label: 'Máquinas',  icon: Printer },
-  { path: '/tests',    label: 'Testes',    icon: ClipboardCheck },
-  { path: '/history',  label: 'Histórico', icon: History },
-  { path: '/tasks',    label: 'Tarefas',   icon: CheckSquare },
-  { path: '/notes',    label: 'Notas',     icon: StickyNote },
+  { path: '/',            label: 'Painel',      icon: LayoutDashboard },
+  { path: '/machines',    label: 'Máquinas',    icon: Printer },
+  { path: '/tests',       label: 'Testes',      icon: ClipboardCheck },
+  { path: '/history',     label: 'Histórico',   icon: History },
+  { path: '/withdrawals', label: 'Ferramentas', icon: PackageOpen },
+  { path: '/tasks',       label: 'Tarefas',     icon: CheckSquare },
+  { path: '/notes',       label: 'Notas',       icon: StickyNote },
 ];
 
 export function Sidebar({ isOpen, onClose }) {

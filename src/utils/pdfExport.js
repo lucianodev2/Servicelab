@@ -2,6 +2,210 @@ import jsPDF from 'jspdf';
 import { formatDate, formatDateTime } from './helpers';
 import { MACHINE_STATUS_LABELS, SERVICE_ENTRY_TYPE_LABELS } from './constants';
 
+export function generateWithdrawalTerm(withdrawal) {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 20;
+  const contentWidth = pageWidth - margin * 2;
+  let y = 20;
+
+  const safeText = (v) => (v != null && v !== '' ? String(v) : '-');
+  const line = (yPos) => {
+    doc.setDrawColor(209, 213, 219);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+  };
+  const sectionTitle = (title, yPos) => {
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(31, 41, 55);
+    doc.text(title, margin, yPos);
+    yPos += 5;
+    line(yPos);
+    return yPos + 7;
+  };
+
+  // ─── CABEÇALHO ────────────────────────────────────────────────
+  doc.setFillColor(30, 136, 229); // blue-700
+  doc.rect(0, 0, pageWidth, 58, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text('ServiceLab — Laboratório de Manutenção', margin, 18);
+
+  doc.setFontSize(17);
+  doc.setFont('helvetica', 'bold');
+  doc.text('TERMO DE RETIRADA DE FERRAMENTAS', margin, 30);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Protocolo: ${withdrawal.protocol}`, margin, 41);
+  doc.text(
+    `Emitido em: ${formatDate(withdrawal.createdAt, 'dd/MM/yyyy HH:mm')}`,
+    margin,
+    50
+  );
+
+  y = 72;
+
+  // ─── DADOS DO TÉCNICO ─────────────────────────────────────────
+  y = sectionTitle('Dados do Técnico', y);
+
+  const techRows = [
+    ['Nome completo:', safeText(withdrawal.technicianName)],
+    ['Empresa / Contratada:', safeText(withdrawal.company)],
+    ['CPF / Identificação:', safeText(withdrawal.cpf)],
+  ];
+
+  doc.setFontSize(10);
+  techRows.forEach(([label, value]) => {
+    doc.setFont('helvetica', 'bold');
+    doc.text(label, margin, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(value, margin + 52, y);
+    y += 7;
+  });
+
+  y += 6;
+
+  // ─── PERÍODO DE USO ───────────────────────────────────────────
+  y = sectionTitle('Período de Uso', y);
+
+  const periodRows = [
+    ['Data de retirada:', formatDate(withdrawal.withdrawalDate + 'T00:00:00', 'dd/MM/yyyy')],
+    ['Previsão de devolução:', formatDate(withdrawal.expectedReturn + 'T00:00:00', 'dd/MM/yyyy')],
+    ['Data de devolução efetiva:', '______________________________'],
+  ];
+
+  doc.setFontSize(10);
+  periodRows.forEach(([label, value]) => {
+    doc.setFont('helvetica', 'bold');
+    doc.text(label, margin, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(value, margin + 52, y);
+    y += 7;
+  });
+
+  if (withdrawal.purpose) {
+    doc.setFont('helvetica', 'bold');
+    doc.text('Finalidade / Local de uso:', margin, y);
+    doc.setFont('helvetica', 'normal');
+    const purposeLines = doc.splitTextToSize(withdrawal.purpose, contentWidth - 52);
+    doc.text(purposeLines, margin + 52, y);
+    y += purposeLines.length * 6;
+  }
+
+  y += 6;
+
+  // ─── TABELA DE FERRAMENTAS ────────────────────────────────────
+  if (y > 220) { doc.addPage(); y = 20; }
+  y = sectionTitle('Ferramentas Retiradas', y);
+
+  const colWidths = [10, 80, 42, 38];
+  const colX = [margin, margin + 12, margin + 94, margin + 138];
+  const headers = ['#', 'Descrição', 'Estado na Saída', 'Estado na Entrada'];
+  const rowHeight = 8;
+
+  // Cabeçalho da tabela
+  doc.setFillColor(243, 244, 246);
+  doc.rect(margin, y - 5, contentWidth, rowHeight, 'F');
+  doc.setDrawColor(209, 213, 219);
+  doc.rect(margin, y - 5, contentWidth, rowHeight, 'S');
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(55, 65, 81);
+  headers.forEach((h, i) => doc.text(h, colX[i] + 2, y));
+  y += rowHeight;
+
+  // Linhas da tabela
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(31, 41, 55);
+  (withdrawal.tools || []).forEach((tool, idx) => {
+    if (y > 265) { doc.addPage(); y = 20; }
+    doc.setDrawColor(209, 213, 219);
+    doc.rect(margin, y - 5, contentWidth, rowHeight, 'S');
+
+    doc.setFontSize(9);
+    doc.text(String(idx + 1), colX[0] + 2, y);
+    const toolLines = doc.splitTextToSize(tool, colWidths[1] - 4);
+    doc.text(toolLines[0], colX[1] + 2, y);
+    // Estado na saída e entrada ficam em branco para preenchimento manual
+    y += Math.max(rowHeight, toolLines.length * 5);
+  });
+
+  y += 8;
+
+  // ─── OBSERVAÇÕES ──────────────────────────────────────────────
+  if (withdrawal.observations) {
+    if (y > 240) { doc.addPage(); y = 20; }
+    y = sectionTitle('Observações', y);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    const obsLines = doc.splitTextToSize(withdrawal.observations, contentWidth);
+    doc.text(obsLines, margin, y);
+    y += obsLines.length * 6 + 8;
+  }
+
+  // ─── DECLARAÇÃO ───────────────────────────────────────────────
+  if (y > 220) { doc.addPage(); y = 20; }
+  y = sectionTitle('Declaração de Responsabilidade', y);
+
+  const declaration =
+    `Eu, ${safeText(withdrawal.technicianName)}, portador do CPF/ID ${safeText(withdrawal.cpf)}, ` +
+    `representante da empresa ${safeText(withdrawal.company)}, declaro que recebi as ferramentas ` +
+    `listadas acima em perfeito estado de conservação e me comprometo a devolvê-las até ` +
+    `${formatDate(withdrawal.expectedReturn + 'T00:00:00', 'dd/MM/yyyy')}, nas mesmas condições ` +
+    `em que foram retiradas, responsabilizando-me por quaisquer danos, perdas ou extravios ocorridos ` +
+    `durante o período de uso.`;
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(31, 41, 55);
+  const declarationLines = doc.splitTextToSize(declaration, contentWidth);
+  doc.text(declarationLines, margin, y);
+  y += declarationLines.length * 6 + 14;
+
+  // ─── ASSINATURAS ──────────────────────────────────────────────
+  if (y > 250) { doc.addPage(); y = 20; }
+
+  const sigWidth = 75;
+  const sig1X = margin;
+  const sig2X = pageWidth - margin - sigWidth;
+
+  doc.setDrawColor(107, 114, 128);
+  doc.line(sig1X, y, sig1X + sigWidth, y);
+  doc.line(sig2X, y, sig2X + sigWidth, y);
+
+  y += 5;
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(55, 65, 81);
+  doc.text('Assinatura do Técnico', sig1X, y);
+  doc.text('Responsável pelo Laboratório', sig2X, y);
+
+  y += 5;
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(107, 114, 128);
+  doc.text(safeText(withdrawal.technicianName), sig1X, y);
+
+  // ─── RODAPÉ ───────────────────────────────────────────────────
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(156, 163, 175);
+    doc.text(
+      `Página ${i} de ${totalPages} — ServiceLab | ${withdrawal.protocol}`,
+      pageWidth / 2,
+      doc.internal.pageSize.getHeight() - 10,
+      { align: 'center' }
+    );
+  }
+
+  doc.save(`termo_retirada_${withdrawal.protocol}.pdf`);
+}
+
 export function generateCompletionReport(machine, completionData) {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();

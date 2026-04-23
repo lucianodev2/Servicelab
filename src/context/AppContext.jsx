@@ -8,6 +8,7 @@ const AppContext = createContext();
 export function AppProvider({ children }) {
   const [machines, setMachines] = useLocalStorage('lab_machines', sampleMachines);
   const [tasks, setTasks] = useLocalStorage('lab_tasks', sampleTasks);
+  const [withdrawals, setWithdrawals] = useLocalStorage('lab_withdrawals', []);
 
   // Machine operations
   const addMachine = useCallback((machineData) => {
@@ -120,6 +121,32 @@ export function AppProvider({ children }) {
     ));
   }, [setTasks]);
 
+  // Withdrawal operations
+  const addWithdrawal = useCallback((data) => {
+    const year = new Date().getFullYear();
+    const yearWithdrawals = withdrawals.filter(
+      w => w.protocol && w.protocol.startsWith(`LAB-${year}-`)
+    );
+    const nextNum = yearWithdrawals.length + 1;
+    const protocol = `LAB-${year}-${String(nextNum).padStart(3, '0')}`;
+    const newWithdrawal = {
+      ...data,
+      id: generateId(),
+      protocol,
+      status: 'pending',
+      returnedAt: null,
+      createdAt: getTodayISO(),
+    };
+    setWithdrawals(prev => [newWithdrawal, ...prev]);
+    return newWithdrawal;
+  }, [setWithdrawals, withdrawals]);
+
+  const markWithdrawalReturned = useCallback((id) => {
+    setWithdrawals(prev => prev.map(w =>
+      w.id === id ? { ...w, status: 'returned', returnedAt: getTodayISO() } : w
+    ));
+  }, [setWithdrawals]);
+
   const clearAllHistory = useCallback(() => {
     setMachines(prev => prev.map(machine => ({
       ...machine,
@@ -145,6 +172,7 @@ export function AppProvider({ children }) {
   const value = {
     machines,
     tasks,
+    withdrawals,
     addMachine,
     updateMachine,
     deleteMachine,
@@ -156,6 +184,8 @@ export function AppProvider({ children }) {
     toggleTaskStatus,
     clearAllHistory,
     getStats,
+    addWithdrawal,
+    markWithdrawalReturned,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
