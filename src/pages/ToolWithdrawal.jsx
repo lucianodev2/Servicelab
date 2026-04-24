@@ -247,9 +247,10 @@ function WithdrawalForm({ onClose, onSubmit }) {
   );
 }
 
-function WithdrawalCard({ withdrawal, onMarkReturned }) {
+function WithdrawalCard({ withdrawal, onMarkReturned, onDelete }) {
   const status = getStatus(withdrawal);
   const { label, icon: Icon, classes } = STATUS_CONFIG[status];
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
@@ -271,6 +272,32 @@ function WithdrawalCard({ withdrawal, onMarkReturned }) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          {confirmDelete ? (
+            <>
+              <button
+                onClick={() => onDelete(withdrawal.id)}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Confirmar
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500"
+                title="Cancelar exclusão"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="p-2 rounded-lg border border-gray-200 hover:bg-red-50 text-gray-400 hover:text-red-500"
+              title="Excluir registro"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
           <button
             onClick={() => generateWithdrawalTerm(withdrawal)}
             className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500 hover:text-blue-600"
@@ -333,7 +360,7 @@ function WithdrawalCard({ withdrawal, onMarkReturned }) {
 }
 
 export function ToolWithdrawal() {
-  const { withdrawals, addWithdrawal, markWithdrawalReturned } = useApp();
+  const { withdrawals, addWithdrawal, markWithdrawalReturned, deleteWithdrawal } = useApp();
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState('all');
 
@@ -428,6 +455,7 @@ export function ToolWithdrawal() {
               key={w.id}
               withdrawal={w}
               onMarkReturned={markWithdrawalReturned}
+              onDelete={deleteWithdrawal}
             />
           ))}
         </div>

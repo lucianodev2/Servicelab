@@ -147,6 +147,10 @@ export function AppProvider({ children }) {
     ));
   }, [setWithdrawals]);
 
+  const deleteWithdrawal = useCallback((id) => {
+    setWithdrawals(prev => prev.filter(w => w.id !== id));
+  }, [setWithdrawals]);
+
   const clearAllHistory = useCallback(() => {
     setMachines(prev => prev.map(machine => ({
       ...machine,
@@ -186,6 +190,7 @@ export function AppProvider({ children }) {
     getStats,
     addWithdrawal,
     markWithdrawalReturned,
+    deleteWithdrawal,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
