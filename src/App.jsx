@@ -1,7 +1,9 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider } from './context/AppContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { Layout } from './components/layout/Layout';
+import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Machines } from './pages/Machines';
 import { MachineDetailPage } from './pages/MachineDetailPage';
@@ -11,25 +13,40 @@ import { ServiceHistory } from './pages/ServiceHistory';
 import { Tests } from './pages/Tests';
 import { ToolWithdrawal } from './pages/ToolWithdrawal';
 
+function ProtectedRoute({ children }) {
+  const { isAuthenticated } = useAuth();
+  return isAuthenticated ? children : <Navigate to="/login" replace />;
+}
+
 function App() {
   return (
-    <AppProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="machines" element={<Machines />} />
-            <Route path="machines/:id" element={<MachineDetailPage />} />
-            <Route path="tasks" element={<Tasks />} />
-            <Route path="notes" element={<Notes />} />
-            <Route path="history" element={<ServiceHistory />} />
-            <Route path="tests" element={<Tests />} />
-            <Route path="withdrawals" element={<ToolWithdrawal />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </AppProvider>
+    <AuthProvider>
+      <AppProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<Dashboard />} />
+              <Route path="machines" element={<Machines />} />
+              <Route path="machines/:id" element={<MachineDetailPage />} />
+              <Route path="tasks" element={<Tasks />} />
+              <Route path="notes" element={<Notes />} />
+              <Route path="history" element={<ServiceHistory />} />
+              <Route path="tests" element={<Tests />} />
+              <Route path="withdrawals" element={<ToolWithdrawal />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </AppProvider>
+    </AuthProvider>
   );
 }
 
