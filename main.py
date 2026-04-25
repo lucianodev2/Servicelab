@@ -1,28 +1,96 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
-from typing import Optional
+import os
 from datetime import datetime
 from enum import Enum
+from typing import Optional, Generator
+
 import uvicorn
+from dotenv import load_dotenv
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+from sqlalchemy import (
+    Boolean, Column, DateTime, ForeignKey,
+    Integer, String, create_engine, func,
+)
+from sqlalchemy.orm import DeclarativeBase, Session, relationship, sessionmaker
 
-# ── App ───────────────────────────────────────────────────────────────────────
+load_dotenv()
 
-app = FastAPI(
-    title="Service Lab API",
-    description="Gerenciamento de equipamentos, serviços, peças e tarefas.",
-    version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+# ── Database connection ───────────────────────────────────────────────────────
+
+DB_URL = (
+    f"postgresql://{os.getenv('DB_USER', 'postgres')}"
+    f":{os.getenv('DB_PASS', 'postgres')}"
+    f"@{os.getenv('DB_HOST', 'localhost')}"
+    f":{os.getenv('DB_PORT', '5432')}"
+    f"/{os.getenv('DB_NAME', 'servicelab')}"
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:4173", "http://localhost:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+engine = create_engine(DB_URL, echo=False)
+SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+# ── SQLAlchemy ORM Models ─────────────────────────────────────────────────────
+
+class MachineORM(Base):
+    __tablename__ = "machines"
+
+    id            = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    serial_number = Column(String(50), unique=True, nullable=False)
+    brand         = Column(String(100), nullable=False)
+    model         = Column(String(100), nullable=False)
+    location      = Column(String(200))
+    status        = Column(String(30), nullable=False, default="maintenance")
+    urgent        = Column(Boolean, nullable=False, default=False)
+    created_at    = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    services = relationship("ServiceORM", back_populates="machine", cascade="all, delete-orphan")
+    parts    = relationship("PartORM",    back_populates="machine")
+    tasks    = relationship("TaskORM",    back_populates="machine")
+
+
+class ServiceORM(Base):
+    __tablename__ = "services"
+
+    id          = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    machine_id  = Column(Integer, ForeignKey("machines.id"), nullable=False)
+    description = Column(String(500), nullable=False)
+    status      = Column(String(30),  nullable=False, default="pending")
+    created_at  = Column(DateTime,    nullable=False, default=datetime.utcnow)
+
+    machine = relationship("MachineORM", back_populates="services")
+
+
+class PartORM(Base):
+    __tablename__ = "parts"
+
+    id         = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    name       = Column(String(200), nullable=False)
+    quantity   = Column(Integer,     nullable=False, default=0)
+    status     = Column(String(30),  nullable=False, default="available")
+    machine_id = Column(Integer, ForeignKey("machines.id"), nullable=True)
+    created_at = Column(DateTime,    nullable=False, default=datetime.utcnow)
+
+    machine = relationship("MachineORM", back_populates="parts")
+
+
+class TaskORM(Base):
+    __tablename__ = "tasks"
+
+    id         = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    title      = Column(String(300), nullable=False)
+    priority   = Column(String(10),  nullable=False, default="medium")
+    machine_id = Column(Integer, ForeignKey("machines.id"), nullable=True)
+    completed  = Column(Boolean,     nullable=False, default=False)
+    due_date   = Column(DateTime,    nullable=True)
+    created_at = Column(DateTime,    nullable=False, default=datetime.utcnow)
+
+    machine = relationship("MachineORM", back_populates="tasks")
+
 
 # ── Enums ─────────────────────────────────────────────────────────────────────
 
@@ -48,7 +116,7 @@ class TaskPriority(str, Enum):
     medium = "medium"
     high   = "high"
 
-# ── Pydantic Models ───────────────────────────────────────────────────────────
+# ── Pydantic Schemas ──────────────────────────────────────────────────────────
 
 class MachineCreate(BaseModel):
     serial_number: str
@@ -66,9 +134,10 @@ class MachineUpdate(BaseModel):
     status: Optional[MachineStatus] = None
     urgent: Optional[bool] = None
 
-class Machine(MachineCreate):
+class MachineOut(MachineCreate):
     id: int
     created_at: datetime
+    model_config = {"from_attributes": True}
 
 
 class ServiceCreate(BaseModel):
@@ -80,9 +149,10 @@ class ServiceUpdate(BaseModel):
     description: Optional[str] = None
     status: Optional[ServiceStatus] = None
 
-class Service(ServiceCreate):
+class ServiceOut(ServiceCreate):
     id: int
     created_at: datetime
+    model_config = {"from_attributes": True}
 
 
 class PartCreate(BaseModel):
@@ -97,9 +167,10 @@ class PartUpdate(BaseModel):
     status: Optional[PartStatus] = None
     machine_id: Optional[int] = None
 
-class Part(PartCreate):
+class PartOut(PartCreate):
     id: int
     created_at: datetime
+    model_config = {"from_attributes": True}
 
 
 class TaskCreate(BaseModel):
@@ -115,10 +186,11 @@ class TaskUpdate(BaseModel):
     completed: Optional[bool] = None
     due_date: Optional[datetime] = None
 
-class Task(TaskCreate):
+class TaskOut(TaskCreate):
     id: int
-    completed: bool = False
+    completed: bool
     created_at: datetime
+    model_config = {"from_attributes": True}
 
 
 class Stats(BaseModel):
@@ -130,60 +202,38 @@ class Stats(BaseModel):
     pending_tasks: int
     machines_by_status: dict[str, int]
 
-# ── In-memory storage ─────────────────────────────────────────────────────────
+# ── App ───────────────────────────────────────────────────────────────────────
 
-machines_db:  list[dict] = []
-services_db:  list[dict] = []
-parts_db:     list[dict] = []
-tasks_db:     list[dict] = []
+app = FastAPI(
+    title="Service Lab API",
+    description="Gerenciamento de equipamentos, serviços, peças e tarefas.",
+    version="2.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
 
-_counters = {"machine": 0, "service": 0, "part": 0, "task": 0}
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:4173", "http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-def next_id(entity: str) -> int:
-    _counters[entity] += 1
-    return _counters[entity]
 
-def _now() -> datetime:
-    return datetime.utcnow()
+@app.on_event("startup")
+def startup():
+    Base.metadata.create_all(bind=engine)
 
-# Sample data
-def _seed():
-    now = _now()
-    for m in [
-        {"serial_number": "HP-001",  "brand": "HP",      "model": "LaserJet Pro M404n", "location": "Sala TI",       "status": "maintenance",   "urgent": True},
-        {"serial_number": "EPS-002", "brand": "Epson",   "model": "EcoTank L3150",      "location": "Recepção",      "status": "waiting_parts", "urgent": False},
-        {"serial_number": "CAN-003", "brand": "Canon",   "model": "PIXMA G3010",        "location": "Contabilidade", "status": "testing",       "urgent": False},
-        {"serial_number": "BRO-004", "brand": "Brother", "model": "MFC-L2700DW",        "location": "RH",            "status": "ready",         "urgent": False},
-    ]:
-        machines_db.append({**m, "id": next_id("machine"), "created_at": now})
 
-    for s in [
-        {"machine_id": 1, "description": "Troca de fusível e limpeza interna",    "status": "in_progress"},
-        {"machine_id": 2, "description": "Substituição do cabeçote de impressão", "status": "pending"},
-        {"machine_id": 3, "description": "Calibração de cores pós-limpeza",       "status": "completed"},
-    ]:
-        services_db.append({**s, "id": next_id("service"), "created_at": now})
+# ── DB Dependency ─────────────────────────────────────────────────────────────
 
-    for p in [
-        {"name": "Fusível 5A",           "quantity": 3, "status": "available",    "machine_id": 1},
-        {"name": "Cabeçote Epson L3150", "quantity": 0, "status": "ordered",      "machine_id": 2},
-        {"name": "Toner HP CF258A",      "quantity": 2, "status": "available",    "machine_id": None},
-    ]:
-        parts_db.append({**p, "id": next_id("part"), "created_at": now})
-
-    for t in [
-        {"title": "Teste de impressão após manutenção", "priority": "high",   "machine_id": 1, "completed": False, "due_date": None},
-        {"title": "Encomendar cabeçote reserva",        "priority": "medium", "machine_id": 2, "completed": False, "due_date": None},
-        {"title": "Atualizar firmware Brother MFC",     "priority": "low",    "machine_id": 4, "completed": True,  "due_date": None},
-    ]:
-        tasks_db.append({**t, "id": next_id("task"), "created_at": now})
-
-_seed()
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def find(db: list[dict], id: int) -> Optional[dict]:
-    return next((r for r in db if r["id"] == id), None)
+def get_db() -> Generator[Session, None, None]:
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 # ── Health ────────────────────────────────────────────────────────────────────
 
@@ -193,159 +243,198 @@ def root():
 
 # ── Machines ──────────────────────────────────────────────────────────────────
 
-@app.get("/api/machines", response_model=list[Machine], tags=["Machines"])
-def list_machines():
-    return machines_db
+@app.get("/api/machines", response_model=list[MachineOut], tags=["Machines"])
+def list_machines(db: Session = Depends(get_db)):
+    return db.query(MachineORM).all()
 
-@app.post("/api/machines", response_model=Machine, status_code=201, tags=["Machines"])
-def create_machine(data: MachineCreate):
-    machine = {"id": next_id("machine"), "created_at": _now(), **data.model_dump()}
-    machines_db.append(machine)
+
+@app.post("/api/machines", response_model=MachineOut, status_code=201, tags=["Machines"])
+def create_machine(data: MachineCreate, db: Session = Depends(get_db)):
+    machine = MachineORM(**data.model_dump())
+    db.add(machine)
+    db.commit()
+    db.refresh(machine)
     return machine
 
-@app.get("/api/machines/{machine_id}", response_model=Machine, tags=["Machines"])
-def get_machine(machine_id: int):
-    machine = find(machines_db, machine_id)
+
+@app.get("/api/machines/{machine_id}", response_model=MachineOut, tags=["Machines"])
+def get_machine(machine_id: int, db: Session = Depends(get_db)):
+    machine = db.query(MachineORM).filter(MachineORM.id == machine_id).first()
     if not machine:
         raise HTTPException(404, "Máquina não encontrada")
     return machine
 
-@app.put("/api/machines/{machine_id}", response_model=Machine, tags=["Machines"])
-def update_machine(machine_id: int, data: MachineUpdate):
-    machine = find(machines_db, machine_id)
+
+@app.put("/api/machines/{machine_id}", response_model=MachineOut, tags=["Machines"])
+def update_machine(machine_id: int, data: MachineUpdate, db: Session = Depends(get_db)):
+    machine = db.query(MachineORM).filter(MachineORM.id == machine_id).first()
     if not machine:
         raise HTTPException(404, "Máquina não encontrada")
-    machine.update({k: v for k, v in data.model_dump().items() if v is not None})
+    for key, val in data.model_dump(exclude_none=True).items():
+        setattr(machine, key, val)
+    db.commit()
+    db.refresh(machine)
     return machine
+
 
 @app.delete("/api/machines/{machine_id}", status_code=204, tags=["Machines"])
-def delete_machine(machine_id: int):
-    machine = find(machines_db, machine_id)
+def delete_machine(machine_id: int, db: Session = Depends(get_db)):
+    machine = db.query(MachineORM).filter(MachineORM.id == machine_id).first()
     if not machine:
         raise HTTPException(404, "Máquina não encontrada")
-    machines_db.remove(machine)
+    db.delete(machine)
+    db.commit()
 
 # ── Services ──────────────────────────────────────────────────────────────────
 
-@app.get("/api/services", response_model=list[Service], tags=["Services"])
-def list_services():
-    return services_db
+@app.get("/api/services", response_model=list[ServiceOut], tags=["Services"])
+def list_services(db: Session = Depends(get_db)):
+    return db.query(ServiceORM).all()
 
-@app.post("/api/services", response_model=Service, status_code=201, tags=["Services"])
-def create_service(data: ServiceCreate):
-    if not find(machines_db, data.machine_id):
+
+@app.post("/api/services", response_model=ServiceOut, status_code=201, tags=["Services"])
+def create_service(data: ServiceCreate, db: Session = Depends(get_db)):
+    if not db.query(MachineORM).filter(MachineORM.id == data.machine_id).first():
         raise HTTPException(404, "Máquina não encontrada")
-    service = {"id": next_id("service"), "created_at": _now(), **data.model_dump()}
-    services_db.append(service)
+    service = ServiceORM(**data.model_dump())
+    db.add(service)
+    db.commit()
+    db.refresh(service)
     return service
 
-@app.get("/api/machines/{machine_id}/services", response_model=list[Service], tags=["Services"])
-def list_machine_services(machine_id: int):
-    if not find(machines_db, machine_id):
-        raise HTTPException(404, "Máquina não encontrada")
-    return [s for s in services_db if s["machine_id"] == machine_id]
 
-@app.put("/api/services/{service_id}", response_model=Service, tags=["Services"])
-def update_service(service_id: int, data: ServiceUpdate):
-    service = find(services_db, service_id)
+@app.get("/api/machines/{machine_id}/services", response_model=list[ServiceOut], tags=["Services"])
+def list_machine_services(machine_id: int, db: Session = Depends(get_db)):
+    if not db.query(MachineORM).filter(MachineORM.id == machine_id).first():
+        raise HTTPException(404, "Máquina não encontrada")
+    return db.query(ServiceORM).filter(ServiceORM.machine_id == machine_id).all()
+
+
+@app.put("/api/services/{service_id}", response_model=ServiceOut, tags=["Services"])
+def update_service(service_id: int, data: ServiceUpdate, db: Session = Depends(get_db)):
+    service = db.query(ServiceORM).filter(ServiceORM.id == service_id).first()
     if not service:
         raise HTTPException(404, "Serviço não encontrado")
-    service.update({k: v for k, v in data.model_dump().items() if v is not None})
+    for key, val in data.model_dump(exclude_none=True).items():
+        setattr(service, key, val)
+    db.commit()
+    db.refresh(service)
     return service
+
 
 @app.delete("/api/services/{service_id}", status_code=204, tags=["Services"])
-def delete_service(service_id: int):
-    service = find(services_db, service_id)
+def delete_service(service_id: int, db: Session = Depends(get_db)):
+    service = db.query(ServiceORM).filter(ServiceORM.id == service_id).first()
     if not service:
         raise HTTPException(404, "Serviço não encontrado")
-    services_db.remove(service)
+    db.delete(service)
+    db.commit()
 
 # ── Parts ─────────────────────────────────────────────────────────────────────
 
-@app.get("/api/parts", response_model=list[Part], tags=["Parts"])
-def list_parts():
-    return parts_db
+@app.get("/api/parts", response_model=list[PartOut], tags=["Parts"])
+def list_parts(db: Session = Depends(get_db)):
+    return db.query(PartORM).all()
 
-@app.post("/api/parts", response_model=Part, status_code=201, tags=["Parts"])
-def create_part(data: PartCreate):
-    if data.machine_id and not find(machines_db, data.machine_id):
+
+@app.post("/api/parts", response_model=PartOut, status_code=201, tags=["Parts"])
+def create_part(data: PartCreate, db: Session = Depends(get_db)):
+    if data.machine_id and not db.query(MachineORM).filter(MachineORM.id == data.machine_id).first():
         raise HTTPException(404, "Máquina não encontrada")
-    part = {"id": next_id("part"), "created_at": _now(), **data.model_dump()}
-    parts_db.append(part)
+    part = PartORM(**data.model_dump())
+    db.add(part)
+    db.commit()
+    db.refresh(part)
     return part
 
-@app.put("/api/parts/{part_id}", response_model=Part, tags=["Parts"])
-def update_part(part_id: int, data: PartUpdate):
-    part = find(parts_db, part_id)
+
+@app.put("/api/parts/{part_id}", response_model=PartOut, tags=["Parts"])
+def update_part(part_id: int, data: PartUpdate, db: Session = Depends(get_db)):
+    part = db.query(PartORM).filter(PartORM.id == part_id).first()
     if not part:
         raise HTTPException(404, "Peça não encontrada")
-    if data.machine_id and not find(machines_db, data.machine_id):
+    if data.machine_id and not db.query(MachineORM).filter(MachineORM.id == data.machine_id).first():
         raise HTTPException(404, "Máquina não encontrada")
-    part.update({k: v for k, v in data.model_dump().items() if v is not None})
+    for key, val in data.model_dump(exclude_none=True).items():
+        setattr(part, key, val)
+    db.commit()
+    db.refresh(part)
     return part
+
 
 @app.delete("/api/parts/{part_id}", status_code=204, tags=["Parts"])
-def delete_part(part_id: int):
-    part = find(parts_db, part_id)
+def delete_part(part_id: int, db: Session = Depends(get_db)):
+    part = db.query(PartORM).filter(PartORM.id == part_id).first()
     if not part:
         raise HTTPException(404, "Peça não encontrada")
-    parts_db.remove(part)
+    db.delete(part)
+    db.commit()
 
 # ── Tasks ─────────────────────────────────────────────────────────────────────
 
-@app.get("/api/tasks", response_model=list[Task], tags=["Tasks"])
-def list_tasks():
-    return tasks_db
+@app.get("/api/tasks", response_model=list[TaskOut], tags=["Tasks"])
+def list_tasks(db: Session = Depends(get_db)):
+    return db.query(TaskORM).all()
 
-@app.post("/api/tasks", response_model=Task, status_code=201, tags=["Tasks"])
-def create_task(data: TaskCreate):
-    if data.machine_id and not find(machines_db, data.machine_id):
+
+@app.post("/api/tasks", response_model=TaskOut, status_code=201, tags=["Tasks"])
+def create_task(data: TaskCreate, db: Session = Depends(get_db)):
+    if data.machine_id and not db.query(MachineORM).filter(MachineORM.id == data.machine_id).first():
         raise HTTPException(404, "Máquina não encontrada")
-    task = {"id": next_id("task"), "completed": False, "created_at": _now(), **data.model_dump()}
-    tasks_db.append(task)
+    task = TaskORM(**data.model_dump())
+    db.add(task)
+    db.commit()
+    db.refresh(task)
     return task
 
-@app.put("/api/tasks/{task_id}", response_model=Task, tags=["Tasks"])
-def update_task(task_id: int, data: TaskUpdate):
-    task = find(tasks_db, task_id)
+
+@app.put("/api/tasks/{task_id}", response_model=TaskOut, tags=["Tasks"])
+def update_task(task_id: int, data: TaskUpdate, db: Session = Depends(get_db)):
+    task = db.query(TaskORM).filter(TaskORM.id == task_id).first()
     if not task:
         raise HTTPException(404, "Tarefa não encontrada")
-    if data.machine_id and not find(machines_db, data.machine_id):
+    if data.machine_id and not db.query(MachineORM).filter(MachineORM.id == data.machine_id).first():
         raise HTTPException(404, "Máquina não encontrada")
-    task.update({k: v for k, v in data.model_dump().items() if v is not None})
+    for key, val in data.model_dump(exclude_none=True).items():
+        setattr(task, key, val)
+    db.commit()
+    db.refresh(task)
     return task
+
 
 @app.delete("/api/tasks/{task_id}", status_code=204, tags=["Tasks"])
-def delete_task(task_id: int):
-    task = find(tasks_db, task_id)
+def delete_task(task_id: int, db: Session = Depends(get_db)):
+    task = db.query(TaskORM).filter(TaskORM.id == task_id).first()
     if not task:
         raise HTTPException(404, "Tarefa não encontrada")
-    tasks_db.remove(task)
+    db.delete(task)
+    db.commit()
 
-@app.patch("/api/tasks/{task_id}/complete", response_model=Task, tags=["Tasks"])
-def complete_task(task_id: int):
-    task = find(tasks_db, task_id)
+
+@app.patch("/api/tasks/{task_id}/complete", response_model=TaskOut, tags=["Tasks"])
+def complete_task(task_id: int, db: Session = Depends(get_db)):
+    task = db.query(TaskORM).filter(TaskORM.id == task_id).first()
     if not task:
         raise HTTPException(404, "Tarefa não encontrada")
-    task["completed"] = True
+    task.completed = True
+    db.commit()
+    db.refresh(task)
     return task
 
 # ── Stats ─────────────────────────────────────────────────────────────────────
 
 @app.get("/api/stats", response_model=Stats, tags=["Stats"])
-def get_stats():
-    machines_by_status: dict[str, int] = {}
-    for m in machines_db:
-        k = m["status"].value if hasattr(m["status"], "value") else m["status"]
-        machines_by_status[k] = machines_by_status.get(k, 0) + 1
+def get_stats(db: Session = Depends(get_db)):
+    rows = db.query(MachineORM.status, func.count().label("n")).group_by(MachineORM.status).all()
+    machines_by_status = {row.status: row.n for row in rows}
 
     return Stats(
-        total_machines=len(machines_db),
-        total_services=len(services_db),
-        total_parts=len(parts_db),
-        total_tasks=len(tasks_db),
-        urgent_machines=sum(1 for m in machines_db if m.get("urgent")),
-        pending_tasks=sum(1 for t in tasks_db if not t.get("completed")),
+        total_machines=db.query(func.count(MachineORM.id)).scalar(),
+        total_services=db.query(func.count(ServiceORM.id)).scalar(),
+        total_parts=db.query(func.count(PartORM.id)).scalar(),
+        total_tasks=db.query(func.count(TaskORM.id)).scalar(),
+        urgent_machines=db.query(func.count(MachineORM.id)).filter(MachineORM.urgent.is_(True)).scalar(),
+        pending_tasks=db.query(func.count(TaskORM.id)).filter(TaskORM.completed.is_(False)).scalar(),
         machines_by_status=machines_by_status,
     )
 
