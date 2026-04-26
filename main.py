@@ -1,4 +1,4 @@
-﻿import os
+import os
 from datetime import datetime
 from enum import Enum
 from typing import Optional, Generator
@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sqlalchemy import (
     Boolean, Column, DateTime, ForeignKey,
-    Integer, String, create_engine, func,
+    Integer, String, Text, create_engine, func, inspect as sa_inspect, text,
 )
 from sqlalchemy.orm import DeclarativeBase, Session, relationship, sessionmaker
 
@@ -26,6 +26,11 @@ DB_URL = (
     f"/{os.getenv('DB_NAME', 'servicelab')}"
 )
 
+CORS_ORIGINS = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:5173,http://localhost:4173,http://localhost:3000",
+).split(",")
+
 engine = create_engine(DB_URL, echo=False, connect_args={"client_encoding": "utf8"})
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
@@ -39,14 +44,20 @@ class Base(DeclarativeBase):
 class MachineORM(Base):
     __tablename__ = "machines"
 
-    id            = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    serial_number = Column(String(50), unique=True, nullable=False)
-    brand         = Column(String(100), nullable=False)
-    model         = Column(String(100), nullable=False)
-    location      = Column(String(200))
-    status        = Column(String(30), nullable=False, default="maintenance")
-    urgent        = Column(Boolean, nullable=False, default=False)
-    created_at    = Column(DateTime, nullable=False, default=datetime.utcnow)
+    id                  = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    serial_number       = Column(String(50), unique=True, nullable=False)
+    brand               = Column(String(100), nullable=False)
+    model               = Column(String(100), nullable=False)
+    patrimony           = Column(String(100), nullable=True)
+    location            = Column(String(200), nullable=True)
+    technician          = Column(String(200), nullable=True)
+    entry_date          = Column(DateTime, nullable=True)
+    problem_description = Column(String(1000), nullable=True)
+    status              = Column(String(30), nullable=False, default="maintenance")
+    urgent              = Column(Boolean, nullable=False, default=False)
+    completion_data     = Column(Text, nullable=True)
+    created_at          = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at          = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
 
     services = relationship("ServiceORM", back_populates="machine", cascade="all, delete-orphan")
     parts    = relationship("PartORM",    back_populates="machine")
@@ -58,9 +69,10 @@ class ServiceORM(Base):
 
     id          = Column(Integer, primary_key=True, index=True, autoincrement=True)
     machine_id  = Column(Integer, ForeignKey("machines.id"), nullable=False)
+    entry_type  = Column(String(30), nullable=False, default="action")
     description = Column(String(500), nullable=False)
-    status      = Column(String(30),  nullable=False, default="pending")
-    created_at  = Column(DateTime,    nullable=False, default=datetime.utcnow)
+    technician  = Column(String(200), nullable=True)
+    created_at  = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     machine = relationship("MachineORM", back_populates="services")
 
@@ -101,10 +113,12 @@ class MachineStatus(str, Enum):
     ready         = "ready"
     completed     = "completed"
 
-class ServiceStatus(str, Enum):
-    pending     = "pending"
-    in_progress = "in_progress"
-    completed   = "completed"
+class ServiceEntryType(str, Enum):
+    action        = "action"
+    test          = "test"
+    note          = "note"
+    part_replaced = "part_replaced"
+    photo         = "photo"
 
 class PartStatus(str, Enum):
     available    = "available"
@@ -119,87 +133,100 @@ class TaskPriority(str, Enum):
 # ── Pydantic Schemas ──────────────────────────────────────────────────────────
 
 class MachineCreate(BaseModel):
-    serial_number: str
-    brand: str
-    model: str
-    location: Optional[str] = None
-    status: MachineStatus = MachineStatus.maintenance
-    urgent: bool = False
+    serial_number:       str
+    brand:               str
+    model:               str
+    patrimony:           Optional[str]      = None
+    location:            Optional[str]      = None
+    technician:          Optional[str]      = None
+    entry_date:          Optional[datetime] = None
+    problem_description: Optional[str]      = None
+    status:              MachineStatus      = MachineStatus.maintenance
+    urgent:              bool               = False
+    completion_data:     Optional[str]      = None
 
 class MachineUpdate(BaseModel):
-    serial_number: Optional[str] = None
-    brand: Optional[str] = None
-    model: Optional[str] = None
-    location: Optional[str] = None
-    status: Optional[MachineStatus] = None
-    urgent: Optional[bool] = None
+    serial_number:       Optional[str]          = None
+    brand:               Optional[str]          = None
+    model:               Optional[str]          = None
+    patrimony:           Optional[str]          = None
+    location:            Optional[str]          = None
+    technician:          Optional[str]          = None
+    entry_date:          Optional[datetime]     = None
+    problem_description: Optional[str]          = None
+    status:              Optional[MachineStatus] = None
+    urgent:              Optional[bool]         = None
+    completion_data:     Optional[str]          = None
 
 class MachineOut(MachineCreate):
-    id: int
+    id:         int
     created_at: datetime
+    updated_at: Optional[datetime] = None
     model_config = {"from_attributes": True}
 
 
 class ServiceCreate(BaseModel):
     machine_id: int
+    entry_type: ServiceEntryType = ServiceEntryType.action
     description: str
-    status: ServiceStatus = ServiceStatus.pending
+    technician: Optional[str] = None
 
 class ServiceUpdate(BaseModel):
-    description: Optional[str] = None
-    status: Optional[ServiceStatus] = None
+    entry_type:  Optional[ServiceEntryType] = None
+    description: Optional[str]             = None
+    technician:  Optional[str]             = None
 
 class ServiceOut(ServiceCreate):
-    id: int
+    id:         int
     created_at: datetime
     model_config = {"from_attributes": True}
 
 
 class PartCreate(BaseModel):
-    name: str
-    quantity: int = Field(ge=0, default=0)
-    status: PartStatus = PartStatus.available
+    name:       str
+    quantity:   int = Field(ge=0, default=0)
+    status:     PartStatus = PartStatus.available
     machine_id: Optional[int] = None
 
 class PartUpdate(BaseModel):
-    name: Optional[str] = None
-    quantity: Optional[int] = Field(default=None, ge=0)
-    status: Optional[PartStatus] = None
-    machine_id: Optional[int] = None
+    name:       Optional[str]        = None
+    quantity:   Optional[int]        = Field(default=None, ge=0)
+    status:     Optional[PartStatus] = None
+    machine_id: Optional[int]        = None
 
 class PartOut(PartCreate):
-    id: int
+    id:         int
     created_at: datetime
     model_config = {"from_attributes": True}
 
 
 class TaskCreate(BaseModel):
-    title: str
-    priority: TaskPriority = TaskPriority.medium
-    machine_id: Optional[int] = None
-    due_date: Optional[datetime] = None
+    title:      str
+    priority:   TaskPriority      = TaskPriority.medium
+    machine_id: Optional[int]     = None
+    due_date:   Optional[datetime] = None
 
 class TaskUpdate(BaseModel):
-    title: Optional[str] = None
-    priority: Optional[TaskPriority] = None
-    machine_id: Optional[int] = None
-    completed: Optional[bool] = None
-    due_date: Optional[datetime] = None
+    title:      Optional[str]          = None
+    priority:   Optional[TaskPriority] = None
+    machine_id: Optional[int]          = None
+    completed:  Optional[bool]         = None
+    due_date:   Optional[datetime]     = None
 
 class TaskOut(TaskCreate):
-    id: int
-    completed: bool
+    id:         int
+    completed:  bool
     created_at: datetime
     model_config = {"from_attributes": True}
 
 
 class Stats(BaseModel):
-    total_machines: int
-    total_services: int
-    total_parts: int
-    total_tasks: int
-    urgent_machines: int
-    pending_tasks: int
+    total_machines:     int
+    total_services:     int
+    total_parts:        int
+    total_tasks:        int
+    urgent_machines:    int
+    pending_tasks:      int
     machines_by_status: dict[str, int]
 
 # ── App ───────────────────────────────────────────────────────────────────────
@@ -214,16 +241,43 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:4173", "http://localhost:3000"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
+def _run_migrations():
+    insp = sa_inspect(engine)
+    with engine.begin() as conn:
+        if insp.has_table("machines"):
+            existing = {c["name"] for c in insp.get_columns("machines")}
+            for col, typedef in [
+                ("patrimony",           "VARCHAR(100)"),
+                ("technician",          "VARCHAR(200)"),
+                ("entry_date",          "TIMESTAMP"),
+                ("problem_description", "VARCHAR(1000)"),
+                ("completion_data",     "TEXT"),
+                ("updated_at",          "TIMESTAMP"),
+            ]:
+                if col not in existing:
+                    conn.execute(text(f"ALTER TABLE machines ADD COLUMN {col} {typedef}"))
+
+        if insp.has_table("services"):
+            existing = {c["name"] for c in insp.get_columns("services")}
+            if "status" in existing and "entry_type" not in existing:
+                conn.execute(text("ALTER TABLE services RENAME COLUMN status TO entry_type"))
+            elif "entry_type" not in existing:
+                conn.execute(text("ALTER TABLE services ADD COLUMN entry_type VARCHAR(30) DEFAULT 'action'"))
+            if "technician" not in existing:
+                conn.execute(text("ALTER TABLE services ADD COLUMN technician VARCHAR(200)"))
+
+
 @app.on_event("startup")
 def startup():
     Base.metadata.create_all(bind=engine)
+    _run_migrations()
 
 
 # ── DB Dependency ─────────────────────────────────────────────────────────────
@@ -272,6 +326,7 @@ def update_machine(machine_id: int, data: MachineUpdate, db: Session = Depends(g
         raise HTTPException(404, "Máquina não encontrada")
     for key, val in data.model_dump(exclude_none=True).items():
         setattr(machine, key, val)
+    machine.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(machine)
     return machine
@@ -307,7 +362,7 @@ def create_service(data: ServiceCreate, db: Session = Depends(get_db)):
 def list_machine_services(machine_id: int, db: Session = Depends(get_db)):
     if not db.query(MachineORM).filter(MachineORM.id == machine_id).first():
         raise HTTPException(404, "Máquina não encontrada")
-    return db.query(ServiceORM).filter(ServiceORM.machine_id == machine_id).all()
+    return db.query(ServiceORM).filter(ServiceORM.machine_id == machine_id).order_by(ServiceORM.created_at.desc()).all()
 
 
 @app.put("/api/services/{service_id}", response_model=ServiceOut, tags=["Services"])

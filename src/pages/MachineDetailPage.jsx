@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -33,13 +33,25 @@ const statusOptions = Object.values(MACHINE_STATUS).map(status => ({
 export function MachineDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { machines, updateMachine, deleteMachine, addServiceEntry, addMachinePhoto } = useApp();
+  const { machines, loading, updateMachine, deleteMachine, addServiceEntry, addMachinePhoto, loadMachineServices } = useApp();
 
   const machine = machines.find(m => m.id === id);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
+
+  useEffect(() => {
+    if (id) loadMachineServices(id);
+  }, [id]);
+
+  if (loading && !machine) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
+      </div>
+    );
+  }
 
   if (!machine) {
     return (

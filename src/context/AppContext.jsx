@@ -1,127 +1,123 @@
-import React, { createContext, useContext, useCallback } from 'react';
+import React, { createContext, useContext, useCallback, useState, useEffect } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { sampleMachines, sampleTasks } from '../data/sampleData';
 import { generateId, getTodayISO } from '../utils/helpers';
+import { machinesApi, tasksApi } from '../services/api';
 
 const AppContext = createContext();
 
 export function AppProvider({ children }) {
-  const [machines, setMachines] = useLocalStorage('lab_machines', sampleMachines);
-  const [tasks, setTasks] = useLocalStorage('lab_tasks', sampleTasks);
+  const [machines, setMachines] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [withdrawals, setWithdrawals] = useLocalStorage('lab_withdrawals', []);
 
+  useEffect(() => {
+    Promise.all([machinesApi.list(), tasksApi.list()])
+      .then(([machineData, taskData]) => {
+        setMachines(machineData);
+        setTasks(taskData);
+      })
+      .catch(err => setError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
   // Machine operations
-  const addMachine = useCallback((machineData) => {
-    const newMachine = {
-      ...machineData,
-      id: generateId(),
-      createdAt: getTodayISO(),
-      updatedAt: getTodayISO(),
-      serviceLog: [{
-        id: generateId(),
+  const addMachine = useCallback(async (machineData) => {
+    const newMachine = await machinesApi.create(machineData);
+    try {
+      const entry = await machinesApi.addServiceEntry(newMachine.id, {
         type: 'action',
         description: 'Máquina registrada no sistema',
         technician: machineData.technician || 'Técnico',
-        timestamp: getTodayISO()
-      }]
-    };
+      });
+      newMachine.serviceLog = [entry];
+    } catch {}
     setMachines(prev => [newMachine, ...prev]);
     return newMachine;
-  }, [setMachines]);
+  }, []);
 
-  const updateMachine = useCallback((id, updates) => {
-    setMachines(prev => prev.map(machine => 
-      machine.id === id 
-        ? { ...machine, ...updates, updatedAt: getTodayISO() }
-        : machine
+  const updateMachine = useCallback(async (id, updates) => {
+    const machine = machines.find(m => m.id === id);
+    if (!machine) return;
+    const updated = await machinesApi.update(id, { ...machine, ...updates });
+    setMachines(prev => prev.map(m =>
+      m.id === id
+        ? { ...updated, serviceLog: m.serviceLog, photos: m.photos, tests: m.tests }
+        : m
     ));
-  }, [setMachines]);
+    return updated;
+  }, [machines]);
 
-  const deleteMachine = useCallback((id) => {
-    setMachines(prev => prev.filter(machine => machine.id !== id));
-  }, [setMachines]);
+  const deleteMachine = useCallback(async (id) => {
+    await machinesApi.delete(id);
+    setMachines(prev => prev.filter(m => m.id !== id));
+  }, []);
 
-  const addServiceEntry = useCallback((machineId, entry) => {
-    const newEntry = {
-      ...entry,
-      id: generateId(),
-      timestamp: getTodayISO()
-    };
-    setMachines(prev => prev.map(machine => 
-      machine.id === machineId 
-        ? { 
-            ...machine, 
-            serviceLog: [newEntry, ...machine.serviceLog],
-            updatedAt: getTodayISO()
-          }
-        : machine
+  const addServiceEntry = useCallback(async (machineId, entry) => {
+    const newEntry = await machinesApi.addServiceEntry(machineId, entry);
+    setMachines(prev => prev.map(m =>
+      m.id === machineId
+        ? { ...m, serviceLog: [newEntry, ...(m.serviceLog || [])] }
+        : m
     ));
     return newEntry;
-  }, [setMachines]);
+  }, []);
+
+  const loadMachineServices = useCallback(async (machineId) => {
+    const services = await machinesApi.getServices(machineId);
+    setMachines(prev => prev.map(m =>
+      m.id === machineId ? { ...m, serviceLog: services } : m
+    ));
+  }, []);
 
   const addMachinePhoto = useCallback((machineId, photoData) => {
-    const newPhoto = {
-      id: generateId(),
-      ...photoData,
-      timestamp: getTodayISO()
-    };
-    setMachines(prev => prev.map(machine => 
-      machine.id === machineId 
-        ? { 
-            ...machine, 
-            photos: [...machine.photos, newPhoto],
-            updatedAt: getTodayISO()
-          }
-        : machine
+    const newPhoto = { id: generateId(), ...photoData, timestamp: getTodayISO() };
+    setMachines(prev => prev.map(m =>
+      m.id === machineId ? { ...m, photos: [...(m.photos || []), newPhoto] } : m
     ));
     return newPhoto;
-  }, [setMachines]);
+  }, []);
 
   // Task operations
-  const addTask = useCallback((taskData) => {
-    const newTask = {
-      ...taskData,
-      id: generateId(),
-      createdAt: getTodayISO(),
-      completedAt: null
-    };
+  const addTask = useCallback(async (taskData) => {
+    const newTask = await tasksApi.create(taskData);
     setTasks(prev => [newTask, ...prev]);
     return newTask;
-  }, [setTasks]);
+  }, []);
 
-  const updateTask = useCallback((id, updates) => {
-    setTasks(prev => prev.map(task => 
-      task.id === id 
-        ? { 
-            ...task, 
-            ...updates,
-            completedAt: updates.status === 'completed' && task.status !== 'completed' 
-              ? getTodayISO() 
-              : updates.status === 'pending' 
-                ? null 
-                : task.completedAt
-          }
-        : task
-    ));
-  }, [setTasks]);
+  const updateTask = useCallback(async (id, updates) => {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+    const completingNow = updates.status === 'completed' && task.status !== 'completed';
+    if (completingNow) {
+      const updated = await tasksApi.complete(id);
+      setTasks(prev => prev.map(t => t.id === id ? updated : t));
+      return updated;
+    }
+    const updated = await tasksApi.update(id, { ...task, ...updates });
+    setTasks(prev => prev.map(t => t.id === id ? updated : t));
+    return updated;
+  }, [tasks]);
 
-  const deleteTask = useCallback((id) => {
-    setTasks(prev => prev.filter(task => task.id !== id));
-  }, [setTasks]);
+  const deleteTask = useCallback(async (id) => {
+    await tasksApi.delete(id);
+    setTasks(prev => prev.filter(t => t.id !== id));
+  }, []);
 
-  const toggleTaskStatus = useCallback((id) => {
-    setTasks(prev => prev.map(task =>
-      task.id === id
-        ? {
-            ...task,
-            status: task.status === 'completed' ? 'pending' : 'completed',
-            completedAt: task.status === 'completed' ? null : getTodayISO()
-          }
-        : task
-    ));
-  }, [setTasks]);
+  const toggleTaskStatus = useCallback(async (id) => {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+    if (task.status !== 'completed') {
+      const updated = await tasksApi.complete(id);
+      setTasks(prev => prev.map(t => t.id === id ? updated : t));
+    } else {
+      const updated = await tasksApi.update(id, { ...task, completed: false });
+      setTasks(prev => prev.map(t => t.id === id ? updated : t));
+    }
+  }, [tasks]);
 
-  // Withdrawal operations
+  // Withdrawal operations (localStorage only)
   const addWithdrawal = useCallback((data) => {
     const year = new Date().getFullYear();
     const yearWithdrawals = withdrawals.filter(
@@ -152,24 +148,19 @@ export function AppProvider({ children }) {
   }, [setWithdrawals]);
 
   const clearAllHistory = useCallback(() => {
-    setMachines(prev => prev.map(machine => ({
-      ...machine,
-      serviceLog: [],
-      updatedAt: getTodayISO(),
-    })));
-  }, [setMachines]);
+    setMachines(prev => prev.map(machine => ({ ...machine, serviceLog: [] })));
+  }, []);
 
-  // Statistics
   const getStats = useCallback(() => {
     return {
-      totalMachines: machines.length,
-      inMaintenance: machines.filter(m => m.status === 'maintenance').length,
-      waitingParts: machines.filter(m => m.status === 'waiting_parts').length,
-      inTesting: machines.filter(m => m.status === 'testing').length,
-      ready: machines.filter(m => m.status === 'ready').length,
-      completed: machines.filter(m => m.status === 'completed').length,
-      pendingTasks: tasks.filter(t => t.status === 'pending').length,
-      highPriorityTasks: tasks.filter(t => t.priority === 'high' && t.status === 'pending').length
+      totalMachines:     machines.length,
+      inMaintenance:     machines.filter(m => m.status === 'maintenance').length,
+      waitingParts:      machines.filter(m => m.status === 'waiting_parts').length,
+      inTesting:         machines.filter(m => m.status === 'testing').length,
+      ready:             machines.filter(m => m.status === 'ready').length,
+      completed:         machines.filter(m => m.status === 'completed').length,
+      pendingTasks:      tasks.filter(t => t.status === 'pending').length,
+      highPriorityTasks: tasks.filter(t => t.priority === 'high' && t.status === 'pending').length,
     };
   }, [machines, tasks]);
 
@@ -177,11 +168,14 @@ export function AppProvider({ children }) {
     machines,
     tasks,
     withdrawals,
+    loading,
+    error,
     addMachine,
     updateMachine,
     deleteMachine,
     addServiceEntry,
     addMachinePhoto,
+    loadMachineServices,
     addTask,
     updateTask,
     deleteTask,
@@ -198,8 +192,6 @@ export function AppProvider({ children }) {
 
 export function useApp() {
   const context = useContext(AppContext);
-  if (!context) {
-    throw new Error('useApp must be used within an AppProvider');
-  }
+  if (!context) throw new Error('useApp must be used within an AppProvider');
   return context;
 }
