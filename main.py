@@ -1,4 +1,4 @@
-import os
+﻿import os
 from datetime import datetime
 from enum import Enum
 from typing import Optional, Generator
@@ -14,7 +14,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Session, relationship, sessionmaker
 
-load_dotenv()
+load_dotenv(encoding="utf-8-sig")
 
 # ── Database connection ───────────────────────────────────────────────────────
 
@@ -26,7 +26,7 @@ DB_URL = (
     f"/{os.getenv('DB_NAME', 'servicelab')}"
 )
 
-engine = create_engine(DB_URL, echo=False)
+engine = create_engine(DB_URL, echo=False, connect_args={"client_encoding": "utf8"})
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
 
