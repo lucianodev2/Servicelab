@@ -74,7 +74,8 @@ export const BRAND_MODELS = {
   'Samsung': ['4070', '4080'],
   'Kyocera': ['3040', '3655'],
   'HP': ['42540', '4003'],
-  'Xerox': ['7025', '7030', '8030']
+  'Xerox': ['7025', '7030', '8030'],
+  'Pamtum': ['P3300'],
 };
 
 // Lista de marcas para dropdown

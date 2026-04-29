@@ -33,7 +33,7 @@ const statusOptions = Object.values(MACHINE_STATUS).map(status => ({
 export function MachineDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { machines, loading, updateMachine, deleteMachine, addServiceEntry, addMachinePhoto, loadMachineServices } = useApp();
+  const { machines, loading, updateMachine, deleteMachine, addServiceEntry, addMachinePhoto, deleteMachinePhoto, loadMachineServices } = useApp();
 
   const machine = machines.find(m => m.id === id);
 
@@ -78,8 +78,13 @@ export function MachineDetailPage() {
     addServiceEntry(machine.id, entry);
   };
 
-  const handleAddPhoto = (photoData) => {
-    addMachinePhoto(machine.id, photoData);
+  // Recebe o File diretamente e envia ao servidor
+  const handleAddPhoto = (file) => {
+    return addMachinePhoto(machine.id, file);
+  };
+
+  const handleDeletePhoto = (photoId) => {
+    return deleteMachinePhoto(machine.id, photoId);
   };
 
   // Intercepta "Finalizada" — abre o modal de conclusão em vez de salvar direto
@@ -243,6 +248,7 @@ export function MachineDetailPage() {
             <PhotoGallery
               photos={machine.photos}
               onAddPhoto={handleAddPhoto}
+              onDeletePhoto={handleDeletePhoto}
             />
           </Card>
         </div>

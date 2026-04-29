@@ -11,25 +11,35 @@ async function request(path, options = {}) {
   return data
 }
 
+function toPhoto(p) {
+  return {
+    id:        String(p.id),
+    url:       p.url,
+    caption:   p.caption || '',
+    timestamp: p.created_at,
+    filename:  p.filename,
+  }
+}
+
 function toMachine(m) {
   return {
-    id: String(m.id),
-    serialNumber: m.serial_number,
-    brand: m.brand,
-    model: m.model,
-    patrimony: m.patrimony || '',
-    location: m.location || '',
-    technician: m.technician || '',
-    entryDate: m.entry_date || m.created_at,
+    id:                 String(m.id),
+    serialNumber:       m.serial_number,
+    brand:              m.brand,
+    model:              m.model,
+    patrimony:          m.patrimony || '',
+    location:           m.location || '',
+    technician:         m.technician || '',
+    entryDate:          m.entry_date || m.created_at,
     problemDescription: m.problem_description || '',
-    status: m.status,
-    urgent: m.urgent,
-    completionData: m.completion_data ? JSON.parse(m.completion_data) : null,
-    createdAt: m.created_at,
-    updatedAt: m.updated_at || m.created_at,
-    serviceLog: [],
-    photos: [],
-    tests: [],
+    status:             m.status,
+    urgent:             m.urgent,
+    completionData:     m.completion_data ? JSON.parse(m.completion_data) : null,
+    createdAt:          m.created_at,
+    updatedAt:          m.updated_at || m.created_at,
+    serviceLog:         [],
+    photos:             (m.photos || []).map(toPhoto),
+    tests:              [],
   }
 }
 
@@ -51,12 +61,12 @@ function fromMachine(data) {
 
 function toServiceEntry(s) {
   return {
-    id:         String(s.id),
-    type:       s.entry_type || 'action',
+    id:          String(s.id),
+    type:        s.entry_type || 'action',
     description: s.description,
-    technician: s.technician || 'Técnico',
-    timestamp:  s.created_at,
-    photos:     [],
+    technician:  s.technician || 'Técnico',
+    timestamp:   s.created_at,
+    photos:      [],
   }
 }
 
@@ -100,6 +110,9 @@ export const machinesApi = {
   list: () =>
     request('/api/machines').then(list => list.map(toMachine)),
 
+  listStock: () =>
+    request('/api/machines/stock').then(list => list.map(toMachine)),
+
   create: (data) =>
     request('/api/machines', {
       method: 'POST',
@@ -123,6 +136,25 @@ export const machinesApi = {
       method: 'POST',
       body: JSON.stringify(fromServiceEntry(entry, machineId)),
     }).then(toServiceEntry),
+
+  uploadPhoto: async (machineId, file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const res = await fetch(`${BASE_URL}/api/machines/${machineId}/photos`, {
+      method: 'POST',
+      body: formData,
+    })
+    if (res.status === 204) return null
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.detail || `Erro ${res.status}`)
+    return toPhoto(data)
+  },
+
+  listPhotos: (machineId) =>
+    request(`/api/machines/${machineId}/photos`).then(list => list.map(toPhoto)),
+
+  deletePhoto: (photoId) =>
+    request(`/api/photos/${photoId}`, { method: 'DELETE' }),
 }
 
 export const tasksApi = {

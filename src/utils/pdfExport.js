@@ -1,6 +1,49 @@
 import jsPDF from 'jspdf';
-import { formatDate, formatDateTime } from './helpers';
 import { MACHINE_STATUS_LABELS, SERVICE_ENTRY_TYPE_LABELS } from './constants';
+
+// ── Utilitários internos ──────────────────────────────────────────────────────
+
+const formatPtDate = (dateString) => {
+  if (!dateString) return '-';
+  try {
+    const d = new Date(dateString);
+    return d.toLocaleDateString('pt-BR');
+  } catch {
+    return '-';
+  }
+};
+
+const formatPtDateTime = (dateString) => {
+  if (!dateString) return '-';
+  try {
+    const d = new Date(dateString);
+    return d.toLocaleString('pt-BR');
+  } catch {
+    return '-';
+  }
+};
+
+const safeText = (v) => (v != null && v !== '' ? String(v) : '-');
+
+// Converte URL de imagem para base64 (suporta URLs remotas e data URIs)
+async function urlToBase64(url) {
+  if (!url) return null;
+  if (url.startsWith('data:')) return url;
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+// ── Termo de Retirada ─────────────────────────────────────────────────────────
 
 export function generateWithdrawalTerm(withdrawal) {
   const doc = new jsPDF();
@@ -9,7 +52,6 @@ export function generateWithdrawalTerm(withdrawal) {
   const contentWidth = pageWidth - margin * 2;
   let y = 20;
 
-  const safeText = (v) => (v != null && v !== '' ? String(v) : '-');
   const line = (yPos) => {
     doc.setDrawColor(209, 213, 219);
     doc.line(margin, yPos, pageWidth - margin, yPos);
@@ -25,7 +67,7 @@ export function generateWithdrawalTerm(withdrawal) {
   };
 
   // ─── CABEÇALHO ────────────────────────────────────────────────
-  doc.setFillColor(30, 136, 229); // blue-700
+  doc.setFillColor(30, 136, 229);
   doc.rect(0, 0, pageWidth, 58, 'F');
 
   doc.setTextColor(255, 255, 255);
@@ -41,7 +83,7 @@ export function generateWithdrawalTerm(withdrawal) {
   doc.setFont('helvetica', 'normal');
   doc.text(`Protocolo: ${withdrawal.protocol}`, margin, 41);
   doc.text(
-    `Emitido em: ${formatDate(withdrawal.createdAt, 'dd/MM/yyyy HH:mm')}`,
+    `Emitido em: ${formatPtDateTime(withdrawal.createdAt)}`,
     margin,
     50
   );
@@ -72,8 +114,8 @@ export function generateWithdrawalTerm(withdrawal) {
   y = sectionTitle('Período de Uso', y);
 
   const periodRows = [
-    ['Data de retirada:', formatDate(withdrawal.withdrawalDate + 'T00:00:00', 'dd/MM/yyyy')],
-    ['Previsão de devolução:', formatDate(withdrawal.expectedReturn + 'T00:00:00', 'dd/MM/yyyy')],
+    ['Data de retirada:', formatPtDate(withdrawal.withdrawalDate + 'T00:00:00')],
+    ['Previsão de devolução:', formatPtDate(withdrawal.expectedReturn + 'T00:00:00')],
     ['Data de devolução efetiva:', '______________________________'],
   ];
 
@@ -106,7 +148,6 @@ export function generateWithdrawalTerm(withdrawal) {
   const headers = ['#', 'Descrição', 'Estado na Saída', 'Estado na Entrada'];
   const rowHeight = 8;
 
-  // Cabeçalho da tabela
   doc.setFillColor(243, 244, 246);
   doc.rect(margin, y - 5, contentWidth, rowHeight, 'F');
   doc.setDrawColor(209, 213, 219);
@@ -118,7 +159,6 @@ export function generateWithdrawalTerm(withdrawal) {
   headers.forEach((h, i) => doc.text(h, colX[i] + 2, y));
   y += rowHeight;
 
-  // Linhas da tabela
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(31, 41, 55);
   (withdrawal.tools || []).forEach((tool, idx) => {
@@ -130,7 +170,6 @@ export function generateWithdrawalTerm(withdrawal) {
     doc.text(String(idx + 1), colX[0] + 2, y);
     const toolLines = doc.splitTextToSize(tool, colWidths[1] - 4);
     doc.text(toolLines[0], colX[1] + 2, y);
-    // Estado na saída e entrada ficam em branco para preenchimento manual
     y += Math.max(rowHeight, toolLines.length * 5);
   });
 
@@ -155,7 +194,7 @@ export function generateWithdrawalTerm(withdrawal) {
     `Eu, ${safeText(withdrawal.technicianName)}, portador do CPF/ID ${safeText(withdrawal.cpf)}, ` +
     `representante da empresa ${safeText(withdrawal.company)}, declaro que recebi as ferramentas ` +
     `listadas acima em perfeito estado de conservação e me comprometo a devolvê-las até ` +
-    `${formatDate(withdrawal.expectedReturn + 'T00:00:00', 'dd/MM/yyyy')}, nas mesmas condições ` +
+    `${formatPtDate(withdrawal.expectedReturn + 'T00:00:00')}, nas mesmas condições ` +
     `em que foram retiradas, responsabilizando-me por quaisquer danos, perdas ou extravios ocorridos ` +
     `durante o período de uso.`;
 
@@ -206,16 +245,16 @@ export function generateWithdrawalTerm(withdrawal) {
   doc.save(`termo_retirada_${withdrawal.protocol}.pdf`);
 }
 
+// ── Relatório de Conclusão ────────────────────────────────────────────────────
+
 export function generateCompletionReport(machine, completionData) {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 20;
   let y = 20;
 
-  const safeText = (v) => (v != null ? String(v) : '-');
-
-  // ─── CABEÇALHO ────────────────────────────────────────────
-  doc.setFillColor(5, 150, 105); // emerald-600
+  // ─── CABEÇALHO ────────────────────────────────────────────────
+  doc.setFillColor(5, 150, 105);
   doc.rect(0, 0, pageWidth, 55, 'F');
 
   doc.setTextColor(255, 255, 255);
@@ -228,11 +267,11 @@ export function generateCompletionReport(machine, completionData) {
   doc.text('ServiceLab — Gerenciamento de Laboratório', margin, 37);
 
   const emittedAt = completionData?.completedAt ?? new Date().toISOString();
-  doc.text(`Emitido em: ${formatDateTime(emittedAt)}`, margin, 47);
+  doc.text(`Emitido em: ${formatPtDateTime(emittedAt)}`, margin, 47);
 
   y = 68;
 
-  // ─── DADOS DA MÁQUINA ─────────────────────────────────────
+  // ─── DADOS DA MÁQUINA ─────────────────────────────────────────
   doc.setTextColor(31, 41, 55);
   doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
@@ -248,7 +287,7 @@ export function generateCompletionReport(machine, completionData) {
     ['Patrimônio:', safeText(machine.patrimony)],
     ['Local:', safeText(machine.location)],
     ['Técnico Responsável:', safeText(completionData?.technician ?? machine.technician)],
-    ['Data de Entrada:', formatDate(machine.entryDate)],
+    ['Data de Entrada:', formatPtDate(machine.entryDate)],
     ['Status Final:', 'Finalizada'],
   ];
 
@@ -263,7 +302,7 @@ export function generateCompletionReport(machine, completionData) {
 
   y += 6;
 
-  // ─── PROBLEMA IDENTIFICADO ────────────────────────────────
+  // ─── PROBLEMA IDENTIFICADO ────────────────────────────────────
   if (machine.problemDescription) {
     if (y > 240) { doc.addPage(); y = 20; }
 
@@ -281,7 +320,7 @@ export function generateCompletionReport(machine, completionData) {
     y += problemLines.length * 5 + 10;
   }
 
-  // ─── PROCEDIMENTOS REALIZADOS ─────────────────────────────
+  // ─── PROCEDIMENTOS REALIZADOS ─────────────────────────────────
   const procedures = (machine.serviceLog ?? []).filter(
     e => e.type === 'action' || e.type === 'test'
   );
@@ -303,7 +342,7 @@ export function generateCompletionReport(machine, completionData) {
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(75, 85, 99);
       doc.text(
-        `${SERVICE_ENTRY_TYPE_LABELS[entry.type] ?? 'Ação'} — ${formatDateTime(entry.timestamp)}`,
+        `${SERVICE_ENTRY_TYPE_LABELS[entry.type] ?? 'Ação'} — ${formatPtDateTime(entry.timestamp)}`,
         margin + 3,
         y
       );
@@ -320,7 +359,7 @@ export function generateCompletionReport(machine, completionData) {
     y += 4;
   }
 
-  // ─── PEÇAS SUBSTITUÍDAS ───────────────────────────────────
+  // ─── PEÇAS SUBSTITUÍDAS ───────────────────────────────────────
   const partsReplaced = (machine.serviceLog ?? []).filter(e => e.type === 'part_replaced');
 
   if (partsReplaced.length > 0) {
@@ -345,7 +384,7 @@ export function generateCompletionReport(machine, completionData) {
     y += 6;
   }
 
-  // ─── OBSERVAÇÕES FINAIS ───────────────────────────────────
+  // ─── OBSERVAÇÕES FINAIS ───────────────────────────────────────
   if (completionData?.finalNotes) {
     if (y > 230) { doc.addPage(); y = 20; }
 
@@ -363,7 +402,7 @@ export function generateCompletionReport(machine, completionData) {
     y += notesLines.length * 5 + 10;
   }
 
-  // ─── REGISTRO FOTOGRÁFICO ─────────────────────────────────
+  // ─── REGISTRO FOTOGRÁFICO ─────────────────────────────────────
   if (completionData?.image) {
     if (y > 175) { doc.addPage(); y = 20; }
 
@@ -379,7 +418,7 @@ export function generateCompletionReport(machine, completionData) {
     y += 100;
   }
 
-  // ─── ASSINATURA ───────────────────────────────────────────
+  // ─── ASSINATURA ───────────────────────────────────────────────
   if (y > 240) { doc.addPage(); y = 20; }
   y += 12;
   doc.setDrawColor(156, 163, 175);
@@ -392,7 +431,7 @@ export function generateCompletionReport(machine, completionData) {
   y += 4;
   doc.text('Técnico Responsável', margin, y);
 
-  // ─── RODAPÉ ───────────────────────────────────────────────
+  // ─── RODAPÉ ───────────────────────────────────────────────────
   const totalPages = doc.internal.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
@@ -406,10 +445,12 @@ export function generateCompletionReport(machine, completionData) {
     );
   }
 
-  const dateStr = formatDate(emittedAt).replace(/\//g, '-');
+  const dateStr = formatPtDate(emittedAt).replace(/\//g, '-');
   const serial = machine.serialNumber ?? machine.id ?? 'maquina';
   doc.save(`relatorio_maquina_${serial}_${dateStr}.pdf`);
 }
+
+// ── Relatório de Serviço (PT-BR) ──────────────────────────────────────────────
 
 export function generateServiceReport(machine, parts) {
   const doc = new jsPDF();
@@ -417,193 +458,354 @@ export function generateServiceReport(machine, parts) {
   const margin = 20;
   let y = 20;
 
-  // Header
-  doc.setFillColor(37, 99, 235); // Primary blue
+  // ─── CABEÇALHO ────────────────────────────────────────────────
+  doc.setFillColor(37, 99, 235);
   doc.rect(0, 0, pageWidth, 50, 'F');
-  
+
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(24);
+  doc.setFontSize(22);
   doc.setFont('helvetica', 'bold');
-  doc.text('Service Report', margin, 30);
-  
-  doc.setFontSize(12);
+  doc.text('RELATÓRIO DE SERVIÇO', margin, 28);
+
+  doc.setFontSize(11);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Generated on ${formatDate(new Date().toISOString())}`, margin, 42);
+  doc.text(`Gerado em: ${formatPtDateTime(new Date().toISOString())}`, margin, 42);
 
   y = 65;
 
-  // Machine Information Section
+  // ─── INFORMAÇÕES DA MÁQUINA ───────────────────────────────────
   doc.setTextColor(31, 41, 55);
-  doc.setFontSize(16);
+  doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.text('Machine Information', margin, y);
-  
-  y += 10;
+  doc.text('Informações da Máquina', margin, y);
+
+  y += 8;
   doc.setDrawColor(229, 231, 235);
   doc.line(margin, y, pageWidth - margin, y);
   y += 8;
 
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'normal');
-  
+  doc.setFontSize(10);
   const machineInfo = [
-    ['Brand & Model:', `${machine.brand} ${machine.model}`],
-    ['Serial Number:', machine.serialNumber],
+    ['Marca e Modelo:', `${machine.brand} ${machine.model}`],
+    ['Número de Série:', safeText(machine.serialNumber)],
+    ['Patrimônio:', safeText(machine.patrimony)],
     ['Status:', MACHINE_STATUS_LABELS[machine.status] || machine.status],
-    ['Entry Date:', formatDate(machine.entryDate)],
-    ['Location:', `${machine.location}${machine.locationDetail ? ` - ${machine.locationDetail}` : ''}`],
+    ['Técnico Responsável:', safeText(machine.technician)],
+    ['Data de Entrada:', formatPtDate(machine.entryDate)],
+    ['Local:', safeText(machine.location)],
   ];
 
   machineInfo.forEach(([label, value]) => {
     doc.setFont('helvetica', 'bold');
     doc.text(label, margin, y);
     doc.setFont('helvetica', 'normal');
-    doc.text(value, margin + 40, y);
+    doc.text(safeText(value), margin + 45, y);
     y += 7;
   });
 
-  if (machine.isUrgent) {
-    y += 5;
+  if (machine.urgent) {
+    y += 3;
     doc.setFillColor(254, 226, 226);
     doc.roundedRect(margin, y - 5, pageWidth - margin * 2, 12, 3, 3, 'F');
     doc.setTextColor(185, 28, 28);
     doc.setFont('helvetica', 'bold');
-    doc.text('⚠ URGENT: This machine requires immediate attention', margin + 5, y + 3);
+    doc.text('URGENTE: Esta máquina requer atenção imediata', margin + 5, y + 3);
     doc.setTextColor(31, 41, 55);
     y += 15;
   } else {
-    y += 10;
+    y += 8;
   }
 
-  // Problem Description
-  doc.setFontSize(16);
+  // ─── DESCRIÇÃO DO PROBLEMA ────────────────────────────────────
+  if (machine.problemDescription) {
+    if (y > 240) { doc.addPage(); y = 20; }
+
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Descrição do Problema', margin, y);
+
+    y += 8;
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 8;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    const problemLines = doc.splitTextToSize(machine.problemDescription, pageWidth - margin * 2);
+    doc.text(problemLines, margin, y);
+    y += problemLines.length * 5 + 10;
+  }
+
+  // ─── HISTÓRICO DE SERVIÇOS ────────────────────────────────────
+  if (y > 220) { doc.addPage(); y = 20; }
+
+  doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.text('Problem Description', margin, y);
-  
-  y += 10;
-  doc.line(margin, y, pageWidth - margin, y);
+  doc.text('Histórico de Serviços', margin, y);
+
   y += 8;
-
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  
-  const problemLines = doc.splitTextToSize(machine.problemDescription, pageWidth - margin * 2);
-  doc.text(problemLines, margin, y);
-  y += problemLines.length * 5 + 10;
-
-  // Service History
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Service History', margin, y);
-  
-  y += 10;
   doc.line(margin, y, pageWidth - margin, y);
   y += 8;
 
   if (machine.serviceLog && machine.serviceLog.length > 0) {
-    machine.serviceLog.forEach((entry, index) => {
-      // Check if we need a new page
-      if (y > 250) {
-        doc.addPage();
-        y = 20;
-      }
+    machine.serviceLog.forEach((entry) => {
+      if (y > 250) { doc.addPage(); y = 20; }
 
-      // Entry header
       doc.setFillColor(243, 244, 246);
       doc.roundedRect(margin, y - 5, pageWidth - margin * 2, 10, 2, 2, 'F');
-      
+
       doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(55, 65, 81);
       doc.text(
-        `${SERVICE_ENTRY_TYPE_LABELS[entry.type] || 'Update'} - ${formatDateTime(entry.timestamp)}`,
+        `${SERVICE_ENTRY_TYPE_LABELS[entry.type] || 'Atualização'} — ${formatPtDateTime(entry.timestamp)}`,
         margin + 5,
         y
       );
-      
+
       y += 12;
 
-      // Entry description
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(31, 41, 55);
-      
+
       const descLines = doc.splitTextToSize(entry.description, pageWidth - margin * 2 - 10);
       doc.text(descLines, margin + 5, y);
-      y += descLines.length * 5 + 3;
-
-      // Parts used
-      if (entry.partsUsed && entry.partsUsed.length > 0) {
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Parts Used:', margin + 5, y);
-        y += 5;
-        
-        doc.setFont('helvetica', 'normal');
-        entry.partsUsed.forEach(part => {
-          doc.text(`• ${part.name} (x${part.quantity})`, margin + 10, y);
-          y += 4;
-        });
-        y += 3;
-      }
-
-      y += 8;
+      y += descLines.length * 5 + 8;
     });
   } else {
     doc.setFontSize(10);
     doc.setFont('helvetica', 'italic');
-    doc.text('No service history recorded.', margin, y);
+    doc.setTextColor(107, 114, 128);
+    doc.text('Nenhum histórico de serviço registrado.', margin, y);
     y += 10;
   }
 
-  // Parts Associated
+  // ─── PEÇAS ASSOCIADAS ─────────────────────────────────────────
   const associatedParts = parts.filter(p => p.machineId === machine.id);
   if (associatedParts.length > 0) {
-    // Check if we need a new page
-    if (y > 220) {
-      doc.addPage();
-      y = 20;
-    }
+    if (y > 220) { doc.addPage(); y = 20; }
 
-    y += 10;
-    doc.setFontSize(16);
+    y += 8;
+    doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text('Associated Parts', margin, y);
-    
-    y += 10;
+    doc.setTextColor(31, 41, 55);
+    doc.text('Peças Associadas', margin, y);
+
+    y += 8;
     doc.line(margin, y, pageWidth - margin, y);
     y += 8;
 
     associatedParts.forEach((part, index) => {
-      if (y > 270) {
-        doc.addPage();
-        y = 20;
-      }
+      if (y > 270) { doc.addPage(); y = 20; }
 
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.text(`${index + 1}. ${part.name}`, margin, y);
-      doc.text(`Qty: ${part.quantity}`, margin + 100, y);
+      doc.text(`Qtd: ${part.quantity}`, margin + 100, y);
       doc.text(`Status: ${part.status}`, margin + 130, y);
       y += 7;
     });
   }
 
-  // Footer
+  // ─── RODAPÉ ───────────────────────────────────────────────────
   const totalPages = doc.internal.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
     doc.setFontSize(8);
     doc.setTextColor(156, 163, 175);
     doc.text(
-      `Page ${i} of ${totalPages} - Printer Lab Manager`,
+      `Página ${i} de ${totalPages} — ServiceLab`,
       pageWidth / 2,
       doc.internal.pageSize.getHeight() - 10,
       { align: 'center' }
     );
   }
 
-  // Save the PDF
-  const fileName = `service-report-${machine.serialNumber}-${formatDate(new Date().toISOString()).replace(/\//g, '-')}.pdf`;
+  const fileName = `relatorio_servico_${machine.serialNumber}_${formatPtDate(new Date().toISOString()).replace(/\//g, '-')}.pdf`;
+  doc.save(fileName);
+}
+
+// ── Relatório de Estoque ──────────────────────────────────────────────────────
+
+export async function generateStockReport(machines) {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 20;
+  const contentWidth = pageWidth - margin * 2;
+  const now = new Date();
+  let y = 20;
+
+  const addFooter = () => {
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(156, 163, 175);
+      doc.text(
+        `Página ${i} de ${totalPages} — ServiceLab — Total: ${machines.length} máquina(s)`,
+        pageWidth / 2,
+        doc.internal.pageSize.getHeight() - 10,
+        { align: 'center' }
+      );
+    }
+  };
+
+  // ─── CABEÇALHO ────────────────────────────────────────────────
+  doc.setFillColor(5, 150, 105); // verde
+  doc.rect(0, 0, pageWidth, 55, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text('ServiceLab — Laboratório de Manutenção', margin, 18);
+
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text('RELATÓRIO DE ESTOQUE DE MÁQUINAS', margin, 32);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Gerado em: ${now.toLocaleString('pt-BR')}`, margin, 44);
+  doc.text(
+    `Total de máquinas: ${machines.length}`,
+    pageWidth - margin,
+    44,
+    { align: 'right' }
+  );
+
+  y = 68;
+
+  if (machines.length === 0) {
+    doc.setTextColor(107, 114, 128);
+    doc.setFontSize(12);
+    doc.text('Nenhuma máquina em estoque no momento.', pageWidth / 2, y + 20, { align: 'center' });
+    addFooter();
+    doc.save(`relatorio_estoque_${now.toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`);
+    return;
+  }
+
+  // ─── CADA MÁQUINA ─────────────────────────────────────────────
+  for (let idx = 0; idx < machines.length; idx++) {
+    const machine = machines[idx];
+
+    // Espaço necessário para o bloco (estimado)
+    const needPhoto = machine.photos && machine.photos.length > 0;
+    const blockHeight = needPhoto ? 70 : 50;
+
+    if (y + blockHeight > 270) {
+      doc.addPage();
+      y = 20;
+    }
+
+    // ─ Fundo alternado
+    if (idx % 2 === 0) {
+      doc.setFillColor(249, 250, 251);
+      doc.rect(margin - 3, y - 6, contentWidth + 6, blockHeight + 4, 'F');
+    }
+
+    // ─ Número do item
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(107, 114, 128);
+    doc.text(`#${idx + 1}`, margin, y);
+
+    // ─ Imagem (Base64 via fetch)
+    let photoBase64 = null;
+    if (needPhoto) {
+      photoBase64 = await urlToBase64(machine.photos[0].url);
+    }
+
+    const hasPhoto = !!photoBase64;
+    const photoW = 30;
+    const photoH = 30;
+    const photoX = margin;
+    const textX = hasPhoto ? margin + photoW + 5 : margin;
+    const textWidth = hasPhoto ? contentWidth - photoW - 5 : contentWidth;
+
+    y += 6;
+
+    if (hasPhoto) {
+      try {
+        // Placeholder cinza
+        doc.setFillColor(229, 231, 235);
+        doc.rect(photoX, y, photoW, photoH, 'F');
+        doc.addImage(photoBase64, 'JPEG', photoX, y, photoW, photoH);
+      } catch {
+        // Se falhar, exibe placeholder
+        doc.setFillColor(209, 213, 219);
+        doc.rect(photoX, y, photoW, photoH, 'F');
+        doc.setTextColor(156, 163, 175);
+        doc.setFontSize(7);
+        doc.text('Sem foto', photoX + photoW / 2, y + photoH / 2, { align: 'center' });
+      }
+    } else {
+      // Placeholder quando não há foto
+      doc.setFillColor(229, 231, 235);
+      doc.rect(photoX, y, photoW, photoH, 'F');
+      doc.setTextColor(156, 163, 175);
+      doc.setFontSize(7);
+      doc.text('Sem foto', photoX + photoW / 2, y + photoH / 2, { align: 'center' });
+    }
+
+    // ─ Dados da máquina
+    const dataY = y;
+    doc.setTextColor(31, 41, 55);
+
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${machine.brand} ${machine.model}`, textX, dataY + 6);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(55, 65, 81);
+
+    const rows = [
+      [`Série: ${safeText(machine.serialNumber)}`, `Patrimônio: ${safeText(machine.patrimony)}`],
+      [`Entrada: ${formatPtDate(machine.entryDate)}`, `Status: Pronta para Entrega`],
+      [`Técnico: ${safeText(machine.technician)}`, `ID: #${machine.id}`],
+    ];
+
+    let rowY = dataY + 14;
+    rows.forEach(([left, right]) => {
+      doc.text(left, textX, rowY);
+      if (right) doc.text(right, textX + textWidth / 2, rowY);
+      rowY += 7;
+    });
+
+    // ─ Separador
+    y = Math.max(y + photoH, rowY) + 6;
+    doc.setDrawColor(229, 231, 235);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 6;
+  }
+
+  // ─── RESUMO FINAL ─────────────────────────────────────────────
+  if (y > 250) { doc.addPage(); y = 20; }
+
+  y += 4;
+  doc.setFillColor(243, 244, 246);
+  doc.rect(margin - 3, y - 4, contentWidth + 6, 18, 'F');
+
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(31, 41, 55);
+  doc.text(
+    `Total em estoque: ${machines.length} máquina(s)`,
+    margin,
+    y + 6
+  );
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(107, 114, 128);
+  doc.text(
+    `Data/hora de geração: ${now.toLocaleString('pt-BR')}`,
+    pageWidth - margin,
+    y + 6,
+    { align: 'right' }
+  );
+
+  addFooter();
+
+  const fileName = `relatorio_estoque_${now.toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`;
   doc.save(fileName);
 }

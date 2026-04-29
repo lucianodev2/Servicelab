@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Plus, CheckSquare, Calendar, AlertCircle, Clock } from 'lucide-react';
+import React, { useState, useCallback } from 'react';
+import { Plus, CheckSquare, Calendar, Clock, Loader, CheckCircle, XCircle } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Input, Select } from '../components/common/Input';
@@ -10,6 +10,25 @@ import { useApp } from '../context/AppContext';
 import { PRIORITY_OPTIONS } from '../utils/constants';
 import { formatDate, getTodayDateString } from '../utils/helpers';
 
+// Notificação de feedback (sucesso/erro)
+function Toast({ message, type, onClose }) {
+  return (
+    <div
+      className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-white text-sm font-medium transition-all ${
+        type === 'success' ? 'bg-green-600' : 'bg-red-600'
+      }`}
+    >
+      {type === 'success' ? (
+        <CheckCircle className="w-4 h-4 shrink-0" />
+      ) : (
+        <XCircle className="w-4 h-4 shrink-0" />
+      )}
+      {message}
+      <button onClick={onClose} className="ml-2 opacity-70 hover:opacity-100">✕</button>
+    </div>
+  );
+}
+
 export function Tasks() {
   const { tasks, machines, addTask, updateTask, deleteTask, toggleTaskStatus } = useApp();
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -17,14 +36,24 @@ export function Tasks() {
   const [deletingTask, setDeletingTask] = useState(null);
   const [filter, setFilter] = useState('all');
 
+  // Estados de loading por tarefa e de formulário
+  const [loadingTaskId, setLoadingTaskId] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [toast, setToast] = useState(null);
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     priority: 'medium',
     dueDate: getTodayDateString(),
     machineId: '',
-    futureNote: '', // Campo especial: Observação Futura
+    futureNote: '',
   });
+
+  const showToast = useCallback((message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  }, []);
 
   const filteredTarefas = tasks.filter(task => {
     if (filter === 'pending') return task.status === 'pending';
@@ -34,7 +63,6 @@ export function Tasks() {
     }
     return true;
   }).sort((a, b) => {
-    // Sort by status (pending first), then by priority
     if (a.status !== b.status) return a.status === 'pending' ? -1 : 1;
     const priorityOrder = { high: 0, medium: 1, low: 2 };
     return priorityOrder[a.priority] - priorityOrder[b.priority];
@@ -42,26 +70,54 @@ export function Tasks() {
 
   const pendingCount = tasks.filter(t => t.status === 'pending').length;
   const completedCount = tasks.filter(t => t.status === 'completed').length;
-  const todayCount = tasks.filter(t => 
+  const todayCount = tasks.filter(t =>
     t.dueDate && t.dueDate.split('T')[0] === getTodayDateString()
   ).length;
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    
-    const taskData = {
-      ...formData,
-      dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : null,
-      status: 'pending',
-    };
-
-    if (editingTask) {
-      updateTask(editingTask.id, taskData);
-    } else {
-      addTask(taskData);
+  // Alterna status com loading e feedback visual
+  const handleToggle = async (taskId) => {
+    if (loadingTaskId) return;
+    setLoadingTaskId(taskId);
+    try {
+      await toggleTaskStatus(taskId);
+      const task = tasks.find(t => t.id === taskId);
+      const wasCompleted = task?.status === 'completed';
+      showToast(
+        wasCompleted ? 'Tarefa marcada como pendente' : 'Tarefa concluída!',
+        'success'
+      );
+    } catch (err) {
+      showToast('Erro ao atualizar tarefa. Tente novamente.', 'error');
+    } finally {
+      setLoadingTaskId(null);
     }
-    
-    closeForm();
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.title.trim()) return;
+
+    setSubmitting(true);
+    try {
+      const taskData = {
+        ...formData,
+        dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : null,
+        status: 'pending',
+      };
+
+      if (editingTask) {
+        await updateTask(editingTask.id, taskData);
+        showToast('Tarefa atualizada com sucesso!');
+      } else {
+        await addTask(taskData);
+        showToast('Tarefa adicionada com sucesso!');
+      }
+      closeForm();
+    } catch (err) {
+      showToast('Erro ao salvar tarefa. Tente novamente.', 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const closeForm = () => {
@@ -90,23 +146,36 @@ export function Tasks() {
     setIsFormOpen(true);
   };
 
-  const handleDelete = () => {
-    if (deletingTask) {
-      deleteTask(deletingTask.id);
-      setDeletingTask(null);
+  const handleDelete = async () => {
+    if (!deletingTask) return;
+    try {
+      await deleteTask(deletingTask.id);
+      showToast('Tarefa excluída.');
+    } catch {
+      showToast('Erro ao excluir tarefa.', 'error');
     }
+    setDeletingTask(null);
   };
 
   const machineOptions = [
     { value: '', label: 'Não relacionada à máquina' },
     ...machines.map(m => ({
       value: m.id,
-      label: `${m.brand} ${m.model}`
-    }))
+      label: `${m.brand} ${m.model}`,
+    })),
   ];
 
   return (
     <div className="space-y-6">
+      {/* Toast de feedback */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Tarefas</h1>
@@ -117,7 +186,7 @@ export function Tasks() {
         </Button>
       </div>
 
-      {/* Stats */}
+      {/* Contadores / Filtros */}
       <div className="grid grid-cols-3 gap-4">
         <button
           onClick={() => setFilter('all')}
@@ -148,12 +217,13 @@ export function Tasks() {
         </button>
       </div>
 
-      {/* Tarefas List */}
+      {/* Lista de tarefas */}
       <div className="space-y-3">
         {filteredTarefas.map(task => {
           const relatedMachine = machines.find(m => m.id === task.machineId);
           const isCompleted = task.status === 'completed';
-          
+          const isLoading = loadingTaskId === task.id;
+
           return (
             <Card
               key={task.id}
@@ -161,17 +231,26 @@ export function Tasks() {
               padding="small"
             >
               <div className="flex items-start gap-3">
+                {/* Checkbox com loading */}
                 <button
-                  onClick={() => toggleTaskStatus(task.id)}
-                  className={`mt-1 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                    isCompleted
-                      ? 'bg-green-500 border-green-500 text-white'
-                      : 'border-gray-300 hover:border-primary-400'
+                  onClick={() => handleToggle(task.id)}
+                  disabled={!!loadingTaskId}
+                  className={`mt-1 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors shrink-0 ${
+                    isLoading
+                      ? 'border-blue-400 bg-blue-50 cursor-wait'
+                      : isCompleted
+                      ? 'bg-green-500 border-green-500 text-white hover:bg-green-600'
+                      : 'border-gray-300 hover:border-primary-400 cursor-pointer'
                   }`}
+                  title={isCompleted ? 'Marcar como pendente' : 'Marcar como concluída'}
                 >
-                  {isCompleted && <CheckSquare className="w-3.5 h-3.5" />}
+                  {isLoading ? (
+                    <Loader className="w-3 h-3 text-blue-500 animate-spin" />
+                  ) : isCompleted ? (
+                    <CheckSquare className="w-3.5 h-3.5" />
+                  ) : null}
                 </button>
-                
+
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
                     <div>
@@ -186,7 +265,7 @@ export function Tasks() {
                     </div>
                     <PriorityBadge priority={task.priority} />
                   </div>
-                  
+
                   <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
                     {task.dueDate && (
                       <span className="flex items-center gap-1">
@@ -201,8 +280,7 @@ export function Tasks() {
                       </span>
                     )}
                   </div>
-                  
-                  {/* Observação Futura */}
+
                   {task.futureNote && (
                     <div className="mt-2 p-2 bg-purple-50 border border-purple-200 rounded-lg">
                       <p className="text-xs text-purple-700">
@@ -211,12 +289,13 @@ export function Tasks() {
                     </div>
                   )}
                 </div>
-                
-                <div className="flex items-center gap-1">
+
+                <div className="flex items-center gap-1 shrink-0">
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => openEditForm(task)}
+                    disabled={!!loadingTaskId}
                   >
                     Editar
                   </Button>
@@ -225,6 +304,7 @@ export function Tasks() {
                     size="sm"
                     className="text-red-600 hover:text-red-700"
                     onClick={() => setDeletingTask(task)}
+                    disabled={!!loadingTaskId}
                   >
                     Excluir
                   </Button>
@@ -247,18 +327,23 @@ export function Tasks() {
         </div>
       )}
 
-      {/* Add/Edit Modal */}
+      {/* Modal Adicionar/Editar */}
       <Modal
         isOpen={isFormOpen}
         onClose={closeForm}
         title={editingTask ? 'Editar Tarefa' : 'Adicionar Nova Tarefa'}
         footer={
           <>
-            <Button variant="secondary" onClick={closeForm}>
+            <Button variant="secondary" onClick={closeForm} disabled={submitting}>
               Cancelar
             </Button>
-            <Button onClick={handleSubmit}>
-              {editingTask ? 'Salvar Alterações' : 'Adicionar Tarefa'}
+            <Button onClick={handleSubmit} disabled={submitting}>
+              {submitting ? (
+                <span className="flex items-center gap-2">
+                  <Loader className="w-4 h-4 animate-spin" />
+                  Salvando...
+                </span>
+              ) : editingTask ? 'Salvar Alterações' : 'Adicionar Tarefa'}
             </Button>
           </>
         }
@@ -271,13 +356,13 @@ export function Tasks() {
             required
             placeholder="O que precisa ser feito?"
           />
-          
+
           <VoiceInput
             value={formData.description}
             onChange={(value) => setFormData({ ...formData, description: value })}
             placeholder="Adicione detalhes (opcional)..."
           />
-          
+
           <div className="grid grid-cols-2 gap-4">
             <Select
               label="Prioridade"
@@ -286,7 +371,7 @@ export function Tasks() {
               options={PRIORITY_OPTIONS}
               required
             />
-            
+
             <Input
               label="Data de Vencimento"
               type="date"
@@ -294,15 +379,14 @@ export function Tasks() {
               onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
             />
           </div>
-          
+
           <Select
             label="Máquina Relacionada (Opcional)"
             value={formData.machineId}
             onChange={(e) => setFormData({ ...formData, machineId: e.target.value })}
             options={machineOptions}
           />
-          
-          {/* Campo Observação Futura */}
+
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">
               Observação Futura (Opcional)
@@ -321,7 +405,7 @@ export function Tasks() {
         </form>
       </Modal>
 
-      {/* Delete Confirmation */}
+      {/* Modal de Exclusão */}
       <ConfirmModal
         isOpen={!!deletingTask}
         onClose={() => setDeletingTask(null)}

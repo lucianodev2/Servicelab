@@ -8,19 +8,21 @@ import {
   History,
   ClipboardCheck,
   PackageOpen,
+  Warehouse,
   X,
   LogOut,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const navItems = [
-  { path: '/',            label: 'Painel',      icon: LayoutDashboard },
-  { path: '/machines',    label: 'Máquinas',    icon: Printer },
-  { path: '/tests',       label: 'Testes',      icon: ClipboardCheck },
-  { path: '/history',     label: 'Histórico',   icon: History },
-  { path: '/withdrawals', label: 'Ferramentas', icon: PackageOpen },
-  { path: '/tasks',       label: 'Tarefas',     icon: CheckSquare },
-  { path: '/notes',       label: 'Notas',       icon: StickyNote },
+  { path: '/',            label: 'Painel',          icon: LayoutDashboard },
+  { path: '/machines',    label: 'Máquinas',        icon: Printer },
+  { path: '/stock',       label: 'Estoque',         icon: Warehouse },
+  { path: '/tests',       label: 'Testes',          icon: ClipboardCheck },
+  { path: '/history',     label: 'Histórico',       icon: History },
+  { path: '/withdrawals', label: 'Ferramentas',     icon: PackageOpen },
+  { path: '/tasks',       label: 'Tarefas',         icon: CheckSquare },
+  { path: '/notes',       label: 'Notas',           icon: StickyNote },
 ];
 
 export function Sidebar({ isOpen, onClose }) {

@@ -1,12 +1,15 @@
 import os
+import shutil
+import uuid as uuid_module
 from datetime import datetime
 from enum import Enum
 from typing import Optional, Generator
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import (
     Boolean, Column, DateTime, ForeignKey,
@@ -30,6 +33,10 @@ CORS_ORIGINS = os.getenv(
     "CORS_ORIGINS",
     "http://localhost:5173,http://localhost:4173,http://localhost:3000",
 ).split(",")
+
+BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
+
+UPLOAD_DIR = "uploads"
 
 engine = create_engine(DB_URL, echo=False, connect_args={"client_encoding": "utf8"})
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
@@ -62,6 +69,7 @@ class MachineORM(Base):
     services = relationship("ServiceORM", back_populates="machine", cascade="all, delete-orphan")
     parts    = relationship("PartORM",    back_populates="machine")
     tasks    = relationship("TaskORM",    back_populates="machine")
+    photos   = relationship("PhotoORM",   back_populates="machine", cascade="all, delete-orphan")
 
 
 class ServiceORM(Base):
@@ -104,6 +112,19 @@ class TaskORM(Base):
     machine = relationship("MachineORM", back_populates="tasks")
 
 
+class PhotoORM(Base):
+    __tablename__ = "photos"
+
+    id         = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    machine_id = Column(Integer, ForeignKey("machines.id"), nullable=False)
+    filename   = Column(String(200), nullable=False)
+    url        = Column(String(500), nullable=False)
+    caption    = Column(String(500), nullable=True)
+    created_at = Column(DateTime,    nullable=False, default=datetime.utcnow)
+
+    machine = relationship("MachineORM", back_populates="photos")
+
+
 # ── Enums ─────────────────────────────────────────────────────────────────────
 
 class MachineStatus(str, Enum):
@@ -131,6 +152,16 @@ class TaskPriority(str, Enum):
     high   = "high"
 
 # ── Pydantic Schemas ──────────────────────────────────────────────────────────
+
+class PhotoOut(BaseModel):
+    id:         int
+    machine_id: int
+    filename:   str
+    url:        str
+    caption:    Optional[str] = None
+    created_at: datetime
+    model_config = {"from_attributes": True}
+
 
 class MachineCreate(BaseModel):
     serial_number:       str
@@ -162,6 +193,7 @@ class MachineOut(MachineCreate):
     id:         int
     created_at: datetime
     updated_at: Optional[datetime] = None
+    photos:     list[PhotoOut] = []
     model_config = {"from_attributes": True}
 
 
@@ -234,14 +266,14 @@ class Stats(BaseModel):
 app = FastAPI(
     title="Service Lab API",
     description="Gerenciamento de equipamentos, serviços, peças e tarefas.",
-    version="2.0.0",
+    version="2.1.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -276,8 +308,13 @@ def _run_migrations():
 
 @app.on_event("startup")
 def startup():
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
     Base.metadata.create_all(bind=engine)
     _run_migrations()
+
+
+# Servir arquivos estáticos (fotos)
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 
 # ── DB Dependency ─────────────────────────────────────────────────────────────
@@ -300,6 +337,17 @@ def root():
 @app.get("/api/machines", response_model=list[MachineOut], tags=["Machines"])
 def list_machines(db: Session = Depends(get_db)):
     return db.query(MachineORM).all()
+
+
+@app.get("/api/machines/stock", response_model=list[MachineOut], tags=["Machines"])
+def list_stock_machines(db: Session = Depends(get_db)):
+    """Retorna máquinas prontas para entrega (estoque da oficina)."""
+    return (
+        db.query(MachineORM)
+        .filter(MachineORM.status.in_(["ready"]))
+        .order_by(MachineORM.entry_date.desc())
+        .all()
+    )
 
 
 @app.post("/api/machines", response_model=MachineOut, status_code=201, tags=["Machines"])
@@ -338,6 +386,64 @@ def delete_machine(machine_id: int, db: Session = Depends(get_db)):
     if not machine:
         raise HTTPException(404, "Máquina não encontrada")
     db.delete(machine)
+    db.commit()
+
+# ── Photos ────────────────────────────────────────────────────────────────────
+
+@app.get("/api/machines/{machine_id}/photos", response_model=list[PhotoOut], tags=["Photos"])
+def list_machine_photos(machine_id: int, db: Session = Depends(get_db)):
+    if not db.query(MachineORM).filter(MachineORM.id == machine_id).first():
+        raise HTTPException(404, "Máquina não encontrada")
+    return (
+        db.query(PhotoORM)
+        .filter(PhotoORM.machine_id == machine_id)
+        .order_by(PhotoORM.created_at.asc())
+        .all()
+    )
+
+
+@app.post("/api/machines/{machine_id}/photos", response_model=PhotoOut, status_code=201, tags=["Photos"])
+async def upload_photo(
+    machine_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    if not db.query(MachineORM).filter(MachineORM.id == machine_id).first():
+        raise HTTPException(404, "Máquina não encontrada")
+
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(400, "O arquivo deve ser uma imagem (JPG, PNG ou WebP)")
+
+    ext = "jpg"
+    if file.filename and "." in file.filename:
+        ext = file.filename.rsplit(".", 1)[-1].lower()
+        if ext not in ("jpg", "jpeg", "png", "webp", "gif"):
+            ext = "jpg"
+
+    filename = f"{uuid_module.uuid4().hex}.{ext}"
+    file_path = os.path.join(UPLOAD_DIR, filename)
+
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    url = f"{BASE_URL}/uploads/{filename}"
+
+    photo = PhotoORM(machine_id=machine_id, filename=filename, url=url)
+    db.add(photo)
+    db.commit()
+    db.refresh(photo)
+    return photo
+
+
+@app.delete("/api/photos/{photo_id}", status_code=204, tags=["Photos"])
+def delete_photo(photo_id: int, db: Session = Depends(get_db)):
+    photo = db.query(PhotoORM).filter(PhotoORM.id == photo_id).first()
+    if not photo:
+        raise HTTPException(404, "Foto não encontrada")
+    file_path = os.path.join(UPLOAD_DIR, photo.filename)
+    if os.path.exists(file_path):
+        os.remove(file_path)
+    db.delete(photo)
     db.commit()
 
 # ── Services ──────────────────────────────────────────────────────────────────
@@ -467,11 +573,12 @@ def delete_task(task_id: int, db: Session = Depends(get_db)):
 
 
 @app.patch("/api/tasks/{task_id}/complete", response_model=TaskOut, tags=["Tasks"])
-def complete_task(task_id: int, db: Session = Depends(get_db)):
+def toggle_task_complete(task_id: int, db: Session = Depends(get_db)):
+    """Alterna o status de conclusão da tarefa (concluída/pendente)."""
     task = db.query(TaskORM).filter(TaskORM.id == task_id).first()
     if not task:
         raise HTTPException(404, "Tarefa não encontrada")
-    task.completed = True
+    task.completed = not task.completed
     db.commit()
     db.refresh(task)
     return task

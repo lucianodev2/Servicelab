@@ -10,7 +10,9 @@ export function Machines() {
   const { machines, addMachine } = useApp();
   const [searchParams, setSearchParams] = useSearchParams();
   const [isFormOpen, setIsFormOpen] = useState(false);
-  
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
+
   const searchQuery = searchParams.get('search') || '';
   const statusFromUrl = searchParams.get('status') || 'all';
   const showNewForm = searchParams.get('action') === 'new';
@@ -23,9 +25,18 @@ export function Machines() {
     }
   }, [showNewForm]);
 
-  const handleAddMachine = (machineData) => {
-    addMachine(machineData);
-    setIsFormOpen(false);
+  // Aguarda a API e mantém a lista estável — sem flickering
+  const handleAddMachine = async (machineData) => {
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      await addMachine(machineData);
+      setIsFormOpen(false);
+    } catch (err) {
+      setSubmitError(err.message || 'Erro ao cadastrar máquina. Tente novamente.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -39,12 +50,20 @@ export function Machines() {
         </div>
         <Button
           leftIcon={Plus}
-          onClick={() => setIsFormOpen(true)}
+          onClick={() => { setIsFormOpen(true); setSubmitError(null); }}
           className="hidden sm:flex"
         >
           Adicionar Máquina
         </Button>
       </div>
+
+      {/* Erro de cadastro */}
+      {submitError && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center justify-between">
+          <span>{submitError}</span>
+          <button onClick={() => setSubmitError(null)} className="ml-2 text-red-500 hover:text-red-700">✕</button>
+        </div>
+      )}
 
       <MachineList
         machines={machines}
@@ -52,9 +71,9 @@ export function Machines() {
         initialStatusFilter={statusFromUrl}
       />
 
-      {/* Floating Action Button for Mobile */}
+      {/* Floating Action Button para Mobile */}
       <button
-        onClick={() => setIsFormOpen(true)}
+        onClick={() => { setIsFormOpen(true); setSubmitError(null); }}
         className="sm:hidden fixed bottom-6 right-6 w-14 h-14 text-white rounded-full shadow-lg flex items-center justify-center transition-colors z-40"
         style={{ background: 'linear-gradient(135deg, #1e88e5 0%, #7b1fa2 100%)' }}
       >
@@ -63,8 +82,9 @@ export function Machines() {
 
       <MachineForm
         isOpen={isFormOpen}
-        onClose={() => setIsFormOpen(false)}
+        onClose={() => { setIsFormOpen(false); setSubmitError(null); }}
         onSubmit={handleAddMachine}
+        submitting={submitting}
       />
     </div>
   );

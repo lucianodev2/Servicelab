@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { X, AlertCircle, Camera } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Loader } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import { Input, TextArea, Select } from '../common/Input';
@@ -14,7 +14,7 @@ const statusOptions = [
   { value: MACHINE_STATUS.COMPLETED, label: 'Finalizada' },
 ];
 
-export function MachineForm({ isOpen, onClose, onSubmit, initialData = null }) {
+export function MachineForm({ isOpen, onClose, onSubmit, initialData = null, submitting = false }) {
   const [formData, setFormData] = useState({
     serialNumber: '',
     brand: '',
@@ -91,7 +91,7 @@ export function MachineForm({ isOpen, onClose, onSubmit, initialData = null }) {
         ...formData,
         entryDate: new Date(formData.entryDate).toISOString(),
       });
-      onClose();
+      // Não fecha aqui — Machines.jsx fecha após sucesso da API
     }
   };
 
@@ -110,11 +110,16 @@ export function MachineForm({ isOpen, onClose, onSubmit, initialData = null }) {
       size="lg"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>
+          <Button variant="secondary" onClick={onClose} disabled={submitting}>
             Cancelar
           </Button>
-          <Button onClick={handleSubmit}>
-            {initialData ? 'Salvar Alterações' : 'Adicionar Máquina'}
+          <Button onClick={handleSubmit} disabled={submitting}>
+            {submitting ? (
+              <span className="flex items-center gap-2">
+                <Loader className="w-4 h-4 animate-spin" />
+                Salvando...
+              </span>
+            ) : initialData ? 'Salvar Alterações' : 'Adicionar Máquina'}
           </Button>
         </>
       }

@@ -33,6 +33,7 @@ export function AppProvider({ children }) {
       });
       newMachine.serviceLog = [entry];
     } catch {}
+    // Garante que a lista é atualizada imediatamente sem flickering
     setMachines(prev => [newMachine, ...prev]);
     return newMachine;
   }, []);
@@ -71,12 +72,31 @@ export function AppProvider({ children }) {
     ));
   }, []);
 
-  const addMachinePhoto = useCallback((machineId, photoData) => {
-    const newPhoto = { id: generateId(), ...photoData, timestamp: getTodayISO() };
+  // Upload de foto para o servidor (corrige bug: fotos do celular não aparecem no desktop)
+  const addMachinePhoto = useCallback(async (machineId, file) => {
+    const newPhoto = await machinesApi.uploadPhoto(machineId, file);
     setMachines(prev => prev.map(m =>
-      m.id === machineId ? { ...m, photos: [...(m.photos || []), newPhoto] } : m
+      m.id === machineId
+        ? { ...m, photos: [...(m.photos || []), newPhoto] }
+        : m
     ));
     return newPhoto;
+  }, []);
+
+  const deleteMachinePhoto = useCallback(async (machineId, photoId) => {
+    await machinesApi.deletePhoto(photoId);
+    setMachines(prev => prev.map(m =>
+      m.id === machineId
+        ? { ...m, photos: (m.photos || []).filter(p => p.id !== String(photoId)) }
+        : m
+    ));
+  }, []);
+
+  const loadMachinePhotos = useCallback(async (machineId) => {
+    const photos = await machinesApi.listPhotos(machineId);
+    setMachines(prev => prev.map(m =>
+      m.id === machineId ? { ...m, photos } : m
+    ));
   }, []);
 
   // Task operations
@@ -105,16 +125,13 @@ export function AppProvider({ children }) {
     setTasks(prev => prev.filter(t => t.id !== id));
   }, []);
 
+  // Corrige bug: toggle usa PATCH que agora alterna estado no backend
   const toggleTaskStatus = useCallback(async (id) => {
     const task = tasks.find(t => t.id === id);
     if (!task) return;
-    if (task.status !== 'completed') {
-      const updated = await tasksApi.complete(id);
-      setTasks(prev => prev.map(t => t.id === id ? updated : t));
-    } else {
-      const updated = await tasksApi.update(id, { ...task, completed: false });
-      setTasks(prev => prev.map(t => t.id === id ? updated : t));
-    }
+    const updated = await tasksApi.complete(id);
+    setTasks(prev => prev.map(t => t.id === id ? updated : t));
+    return updated;
   }, [tasks]);
 
   // Withdrawal operations (localStorage only)
@@ -175,6 +192,8 @@ export function AppProvider({ children }) {
     deleteMachine,
     addServiceEntry,
     addMachinePhoto,
+    deleteMachinePhoto,
+    loadMachinePhotos,
     loadMachineServices,
     addTask,
     updateTask,
