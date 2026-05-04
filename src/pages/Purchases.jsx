@@ -28,11 +28,10 @@ const EMPTY_FORM = { name: '', description: '', quantity: 1, priority: 'medium',
 export function Purchases() {
   const { purchases, addPurchase, updatePurchase, deletePurchase } = useApp();
 
-  const [formOpen, setFormOpen]       = useState(false);
-  const [editing, setEditing]         = useState(null);   // item sendo editado
-  const [form, setForm]               = useState(EMPTY_FORM);
-  const [saving, setSaving]           = useState(false);
-  const [formError, setFormError]     = useState('');
+  const [formOpen, setFormOpen]   = useState(false);
+  const [editing, setEditing]     = useState(null);
+  const [form, setForm]           = useState(EMPTY_FORM);
+  const [formError, setFormError] = useState('');
 
   const [statusFilter, setStatusFilter]     = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
@@ -85,34 +84,31 @@ export function Purchases() {
     setFormError('');
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.name.trim()) { setFormError('O nome do item é obrigatório.'); return; }
     if (form.quantity < 1)  { setFormError('A quantidade deve ser pelo menos 1.'); return; }
-    setSaving(true);
     setFormError('');
     try {
       if (editing) {
-        await updatePurchase(editing.id, form);
+        updatePurchase(editing.id, form);
       } else {
-        await addPurchase(form);
+        addPurchase(form);
       }
       closeForm();
-    } catch (err) {
-      setFormError(err.message || 'Erro ao salvar item.');
-    } finally {
-      setSaving(false);
+    } catch {
+      setFormError('Erro ao salvar item. Tente novamente.');
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = (id) => {
     if (!window.confirm('Excluir este item da lista de compras?')) return;
-    try { await deletePurchase(id); } catch {}
+    deletePurchase(id);
   };
 
-  const handleToggleStatus = async (item) => {
+  const handleToggleStatus = (item) => {
     const next = item.status === 'pending' ? 'purchased' : 'pending';
-    try { await updatePurchase(item.id, { ...item, status: next }); } catch {}
+    updatePurchase(item.id, { ...item, status: next });
   };
 
   const handleExportPdf = async () => {
@@ -425,11 +421,10 @@ export function Purchases() {
                 </button>
                 <button
                   type="submit"
-                  disabled={saving}
-                  className="flex-1 px-4 py-2 rounded-lg text-white text-sm font-medium transition-colors disabled:opacity-60"
+                  className="flex-1 px-4 py-2 rounded-lg text-white text-sm font-medium transition-colors"
                   style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)' }}
                 >
-                  {saving ? 'Salvando…' : editing ? 'Salvar Alterações' : 'Adicionar Item'}
+                  {editing ? 'Salvar Alterações' : 'Adicionar Item'}
                 </button>
               </div>
             </form>
