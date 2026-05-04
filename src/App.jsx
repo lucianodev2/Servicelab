@@ -14,6 +14,7 @@ import { Tests } from './pages/Tests';
 import { ToolWithdrawal } from './pages/ToolWithdrawal';
 import { MachineStock } from './pages/MachineStock';
 import { Purchases } from './pages/Purchases';
+import { InternalRequisition } from './pages/InternalRequisition';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth();
@@ -45,6 +46,7 @@ function App() {
               <Route path="withdrawals" element={<ToolWithdrawal />} />
               <Route path="stock" element={<MachineStock />} />
               <Route path="purchases" element={<Purchases />} />
+              <Route path="requisitions" element={<InternalRequisition />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>

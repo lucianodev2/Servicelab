@@ -964,3 +964,263 @@ export function generatePurchaseReport(purchases) {
   const dateStr = now.toLocaleDateString('pt-BR').replace(/\//g, '-');
   doc.save(`lista_compras_${dateStr}.pdf`);
 }
+
+// ── Requisição Interna ────────────────────────────────────────────────────────
+
+export function generateRequisitionPDF(header, items) {
+  const doc        = new jsPDF();
+  const pageWidth  = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin     = 15;
+  const cw         = pageWidth - margin * 2;    // largura útil
+  const now        = new Date();
+  let y = 0;
+
+  // Cores institucionais
+  const NAVY   = [30,  58, 138];  // blue-900
+  const BLUE   = [30,  64, 175];  // blue-700
+  const WHITE  = [255, 255, 255];
+  const DARK   = [17,  24,  39];  // gray-900
+  const MID    = [75,  85,  99];  // gray-600
+  const LIGHT  = [243, 244, 246]; // gray-100
+  const BORDER = [209, 213, 219]; // gray-300
+
+  // ─── CABEÇALHO INSTITUCIONAL ──────────────────────────────────────────
+  doc.setFillColor(...NAVY);
+  doc.rect(0, 0, pageWidth, 48, 'F');
+
+  // Faixa lateral decorativa
+  doc.setFillColor(...BLUE);
+  doc.rect(0, 0, 6, 48, 'F');
+
+  doc.setTextColor(...WHITE);
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'normal');
+  doc.text('ServiceLab — Sistema de Gestão de Laboratório', margin + 4, 12);
+
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('REQUISIÇÃO INTERNA', margin + 4, 25);
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`INOVE FILIAL ${(header.filial || '').toUpperCase()}`, margin + 4, 35);
+
+  // Número / timestamp no canto direito
+  const ts = now.toLocaleString('pt-BR');
+  doc.setFontSize(7.5);
+  doc.setTextColor(147, 197, 253); // blue-300
+  doc.text(`Emitido em: ${ts}`, pageWidth - margin, 25, { align: 'right' });
+  doc.text(
+    `Arquivo: requisicao-interna-${now.toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`,
+    pageWidth - margin,
+    33,
+    { align: 'right' }
+  );
+
+  y = 58;
+
+  // ─── BLOCO DE INFORMAÇÕES ──────────────────────────────────────────────
+  const infoBoxH = 28;
+  doc.setFillColor(...LIGHT);
+  doc.roundedRect(margin, y, cw, infoBoxH, 3, 3, 'F');
+  doc.setDrawColor(...BORDER);
+  doc.roundedRect(margin, y, cw, infoBoxH, 3, 3, 'S');
+
+  const infoItems = [
+    { label: 'EMPRESA', value: header.empresa || '-' },
+    { label: 'SETOR',   value: header.setor   || '-' },
+    { label: 'FILIAL',  value: header.filial  || '-' },
+    { label: 'DATA',    value: header.data
+        ? new Date(header.data + 'T12:00:00').toLocaleDateString('pt-BR')
+        : '-' },
+  ];
+
+  const colW = cw / infoItems.length;
+  infoItems.forEach(({ label, value }, i) => {
+    const x = margin + i * colW + 6;
+
+    // Divisor vertical (exceto no primeiro)
+    if (i > 0) {
+      doc.setDrawColor(...BORDER);
+      doc.line(margin + i * colW, y + 4, margin + i * colW, y + infoBoxH - 4);
+    }
+
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...NAVY);
+    doc.text(label, x, y + 10);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...DARK);
+    const valueLines = doc.splitTextToSize(value, colW - 10);
+    doc.text(valueLines[0], x, y + 21);
+  });
+
+  y += infoBoxH + 10;
+
+  // ─── TABELA DE ITENS ───────────────────────────────────────────────────
+
+  // Proporções das colunas (soma = cw)
+  const colWidths = [
+    cw * 0.35,   // Descrição
+    cw * 0.25,   // Referência
+    cw * 0.10,   // Qtd
+    cw * 0.30,   // Local
+  ];
+  const colX = [
+    margin,
+    margin + colWidths[0],
+    margin + colWidths[0] + colWidths[1],
+    margin + colWidths[0] + colWidths[1] + colWidths[2],
+  ];
+  const colHeaders = ['DESCRIÇÃO DO PRODUTO', 'REFERÊNCIA DO FORNECEDOR', 'QTD.', 'LOCAL DE ESTOQUE'];
+  const rowH = 10;
+  const headH = 12;
+
+  // Cabeçalho da tabela — fundo azul escuro
+  doc.setFillColor(...NAVY);
+  doc.roundedRect(margin, y, cw, headH, 2, 2, 'F');
+
+  doc.setTextColor(...WHITE);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  colHeaders.forEach((h, i) => {
+    const align = i === 2 ? 'center' : 'left';
+    const x     = i === 2 ? colX[i] + colWidths[i] / 2 : colX[i] + 4;
+    doc.text(h, x, y + 8, { align });
+  });
+
+  y += headH;
+
+  // Linhas de dados
+  items.forEach((item, idx) => {
+    if (y + rowH > pageHeight - 45) {
+      doc.addPage();
+      y = 20;
+    }
+
+    // Fundo alternado
+    if (idx % 2 === 0) {
+      doc.setFillColor(248, 250, 252); // slate-50
+      doc.rect(margin, y, cw, rowH, 'F');
+    }
+
+    // Bordas horizontais
+    doc.setDrawColor(...BORDER);
+    doc.line(margin, y,       margin + cw, y);
+    doc.line(margin, y + rowH, margin + cw, y + rowH);
+    // Bordas verticais externas
+    doc.line(margin,      y, margin,      y + rowH);
+    doc.line(margin + cw, y, margin + cw, y + rowH);
+
+    // Linhas separadoras de colunas
+    colX.slice(1).forEach(x => {
+      doc.setDrawColor(229, 231, 235);
+      doc.line(x, y + 2, x, y + rowH - 2);
+    });
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...DARK);
+
+    const cellY = y + rowH / 2 + 3; // centralizado verticalmente
+
+    // Descrição
+    const descLines = doc.splitTextToSize(item.description || '-', colWidths[0] - 8);
+    doc.text(descLines[0], colX[0] + 4, cellY);
+
+    // Referência
+    const refLines = doc.splitTextToSize(item.reference || '-', colWidths[1] - 8);
+    doc.text(refLines[0], colX[1] + 4, cellY);
+
+    // Quantidade — centralizada
+    doc.setFont('helvetica', 'bold');
+    doc.text(String(item.quantity ?? '-'), colX[2] + colWidths[2] / 2, cellY, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+
+    // Local de estoque
+    const locLines = doc.splitTextToSize(item.location || '-', colWidths[3] - 8);
+    doc.text(locLines[0], colX[3] + 4, cellY);
+
+    y += rowH;
+  });
+
+  // Borda inferior da tabela
+  doc.setDrawColor(...BORDER);
+  doc.line(margin, y, margin + cw, y);
+
+  y += 14;
+
+  // ─── TOTAL ────────────────────────────────────────────────────────────
+  const totalQty = items.reduce((s, r) => s + (Number(r.quantity) || 0), 0);
+
+  doc.setFillColor(...LIGHT);
+  doc.roundedRect(margin, y - 4, cw, 14, 2, 2, 'F');
+  doc.setDrawColor(...BORDER);
+  doc.roundedRect(margin, y - 4, cw, 14, 2, 2, 'S');
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...NAVY);
+  doc.text(
+    `Total de itens: ${items.length}    |    Quantidade total: ${totalQty} unidade${totalQty !== 1 ? 's' : ''}`,
+    margin + 6,
+    y + 5
+  );
+
+  y += 24;
+
+  // ─── ASSINATURAS ──────────────────────────────────────────────────────
+  if (y > pageHeight - 60) { doc.addPage(); y = 20; }
+
+  const sigW   = 70;
+  const sig1X  = margin;
+  const sig2X  = margin + (cw / 2);
+  const sig3X  = pageWidth - margin - sigW;
+
+  const sigLabels = [
+    { x: sig1X,  label: 'Solicitante',        sub: '' },
+    { x: sig2X,  label: 'Responsável Técnico', sub: '' },
+    { x: sig3X,  label: 'Autorização',         sub: '' },
+  ];
+
+  sigLabels.forEach(({ x, label }) => {
+    doc.setDrawColor(...MID);
+    doc.line(x, y, x + sigW, y);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...DARK);
+    doc.text(label, x + sigW / 2, y + 6, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...MID);
+    doc.text('Assinatura / Carimbo', x + sigW / 2, y + 12, { align: 'center' });
+  });
+
+  // ─── RODAPÉ ───────────────────────────────────────────────────────────
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+
+    // Faixa do rodapé
+    doc.setFillColor(...NAVY);
+    doc.rect(0, pageHeight - 14, pageWidth, 14, 'F');
+
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...WHITE);
+    doc.text(
+      `ServiceLab — Requisição Interna  |  Página ${i} de ${totalPages}`,
+      pageWidth / 2,
+      pageHeight - 5,
+      { align: 'center' }
+    );
+    doc.setTextColor(147, 197, 253);
+    doc.text(ts, margin, pageHeight - 5);
+  }
+
+  const fileDateStr = now.toLocaleDateString('pt-BR').replace(/\//g, '-');
+  doc.save(`requisicao-interna-${fileDateStr}.pdf`);
+}
