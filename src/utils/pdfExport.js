@@ -1021,7 +1021,7 @@ export function generateRequisitionPDF(header, items) {
   y = 58;
 
   // ─── BLOCO DE INFORMAÇÕES ──────────────────────────────────────────────
-  const infoBoxH = 28;
+  const infoBoxH = 38;
   doc.setFillColor(...LIGHT);
   doc.roundedRect(margin, y, cw, infoBoxH, 3, 3, 'F');
   doc.setDrawColor(...BORDER);
@@ -1051,11 +1051,12 @@ export function generateRequisitionPDF(header, items) {
     doc.setTextColor(...NAVY);
     doc.text(label, x, y + 10);
 
-    doc.setFontSize(9);
+    doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...DARK);
     const valueLines = doc.splitTextToSize(value, colW - 10);
-    doc.text(valueLines[0], x, y + 21);
+    doc.text(valueLines[0], x, y + 20);
+    if (valueLines[1]) doc.text(valueLines[1], x, y + 29);
   });
 
   y += infoBoxH + 10;
@@ -1175,10 +1176,11 @@ export function generateRequisitionPDF(header, items) {
   // ─── ASSINATURAS ──────────────────────────────────────────────────────
   if (y > pageHeight - 60) { doc.addPage(); y = 20; }
 
-  const sigW   = 70;
-  const sig1X  = margin;
-  const sig2X  = margin + (cw / 2);
-  const sig3X  = pageWidth - margin - sigW;
+  const sigW      = 52;
+  const sectionW  = cw / 3;
+  const sig1X     = margin;
+  const sig2X     = margin + sectionW;
+  const sig3X     = margin + sectionW * 2;
 
   const sigLabels = [
     { x: sig1X,  label: 'Solicitante',        sub: '' },
