@@ -809,3 +809,158 @@ export async function generateStockReport(machines) {
   const fileName = `relatorio_estoque_${now.toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`;
   doc.save(fileName);
 }
+
+// ── Relatório de Compras ──────────────────────────────────────────────────────
+
+const PRIORITY_LABELS = { low: 'Baixa', medium: 'Média', high: 'Alta' };
+const STATUS_LABELS    = { pending: 'Pendente', purchased: 'Comprado' };
+
+export function generatePurchaseReport(purchases) {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 20;
+  const contentWidth = pageWidth - margin * 2;
+  const now = new Date();
+  let y = 20;
+
+  // ─── CABEÇALHO ────────────────────────────────────────────────
+  doc.setFillColor(124, 58, 237); // roxo
+  doc.rect(0, 0, pageWidth, 55, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text('ServiceLab — Laboratório de Manutenção', margin, 18);
+
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text('LISTA DE COMPRAS - LABORATÓRIO', margin, 32);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Gerado em: ${now.toLocaleString('pt-BR')}`, margin, 44);
+  doc.text(
+    `Total de itens: ${purchases.length}`,
+    pageWidth - margin,
+    44,
+    { align: 'right' }
+  );
+
+  y = 68;
+
+  if (purchases.length === 0) {
+    doc.setTextColor(107, 114, 128);
+    doc.setFontSize(12);
+    doc.text('Nenhum item de compra cadastrado.', pageWidth / 2, y + 20, { align: 'center' });
+  } else {
+    // ─── TABELA ───────────────────────────────────────────────────
+    const colWidths = [72, 20, 28, 28, 22];
+    const colX = [
+      margin,
+      margin + 72,
+      margin + 92,
+      margin + 120,
+      margin + 148,
+    ];
+    const headers = ['Item', 'Qtd.', 'Prioridade', 'Status', 'Data'];
+    const rowH = 9;
+
+    // Cabeçalho da tabela
+    doc.setFillColor(243, 244, 246);
+    doc.rect(margin, y - 6, contentWidth, rowH + 2, 'F');
+    doc.setDrawColor(209, 213, 219);
+    doc.rect(margin, y - 6, contentWidth, rowH + 2, 'S');
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(55, 65, 81);
+    headers.forEach((h, i) => doc.text(h, colX[i] + 2, y));
+    y += rowH + 2;
+
+    // Linhas
+    purchases.forEach((item, idx) => {
+      if (y > 270) { doc.addPage(); y = 20; }
+
+      if (idx % 2 === 0) {
+        doc.setFillColor(249, 250, 251);
+        doc.rect(margin, y - 6, contentWidth, rowH + 1, 'F');
+      }
+      doc.setDrawColor(229, 231, 235);
+      doc.rect(margin, y - 6, contentWidth, rowH + 1, 'S');
+
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(31, 41, 55);
+      doc.setFontSize(9);
+
+      const nameLines = doc.splitTextToSize(item.name, colWidths[0] - 4);
+      doc.text(nameLines[0], colX[0] + 2, y);
+      doc.text(String(item.quantity),                 colX[1] + 2, y);
+      doc.text(PRIORITY_LABELS[item.priority] || '-', colX[2] + 2, y);
+      doc.text(STATUS_LABELS[item.status]     || '-', colX[3] + 2, y);
+      const dateStr = item.createdAt
+        ? new Date(item.createdAt).toLocaleDateString('pt-BR')
+        : '-';
+      doc.text(dateStr, colX[4] + 2, y);
+
+      if (item.description) {
+        y += rowH;
+        doc.setFontSize(8);
+        doc.setTextColor(107, 114, 128);
+        const descLines = doc.splitTextToSize(item.description, contentWidth - 8);
+        doc.text(descLines[0], colX[0] + 4, y);
+        doc.setTextColor(31, 41, 55);
+      }
+
+      y += rowH + 1;
+    });
+
+    // ─── RESUMO ───────────────────────────────────────────────────
+    if (y > 250) { doc.addPage(); y = 20; }
+    y += 6;
+
+    const pending   = purchases.filter(p => p.status === 'pending').length;
+    const purchased = purchases.filter(p => p.status === 'purchased').length;
+    const highPrio  = purchases.filter(p => p.priority === 'high' && p.status === 'pending').length;
+
+    doc.setFillColor(237, 233, 254);
+    doc.rect(margin - 3, y - 4, contentWidth + 6, 26, 'F');
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(109, 40, 217);
+    doc.text('Resumo', margin, y + 4);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(31, 41, 55);
+    doc.setFontSize(9);
+    doc.text(`Pendentes: ${pending}   |   Comprados: ${purchased}   |   Alta Prioridade Pendente: ${highPrio}`, margin, y + 14);
+  }
+
+  // ─── ASSINATURA ───────────────────────────────────────────────
+  const pageH = doc.internal.pageSize.getHeight();
+  const sigY = pageH - 35;
+  doc.setDrawColor(156, 163, 175);
+  doc.line(margin, sigY, margin + 75, sigY);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(107, 114, 128);
+  doc.text('Assinatura do Responsável', margin, sigY + 5);
+  doc.text(`Data: ${now.toLocaleDateString('pt-BR')}`, pageWidth - margin, sigY + 5, { align: 'right' });
+
+  // ─── RODAPÉ ───────────────────────────────────────────────────
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(156, 163, 175);
+    doc.text(
+      `Página ${i} de ${totalPages} — ServiceLab`,
+      pageWidth / 2,
+      pageH - 10,
+      { align: 'center' }
+    );
+  }
+
+  const dateStr = now.toLocaleDateString('pt-BR').replace(/\//g, '-');
+  doc.save(`lista_compras_${dateStr}.pdf`);
+}

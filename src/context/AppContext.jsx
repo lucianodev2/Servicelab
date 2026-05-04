@@ -1,22 +1,24 @@
 import React, { createContext, useContext, useCallback, useState, useEffect } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { generateId, getTodayISO } from '../utils/helpers';
-import { machinesApi, tasksApi } from '../services/api';
+import { machinesApi, tasksApi, purchasesApi } from '../services/api';
 
 const AppContext = createContext();
 
 export function AppProvider({ children }) {
   const [machines, setMachines] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [purchases, setPurchases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [withdrawals, setWithdrawals] = useLocalStorage('lab_withdrawals', []);
 
   useEffect(() => {
-    Promise.all([machinesApi.list(), tasksApi.list()])
-      .then(([machineData, taskData]) => {
+    Promise.all([machinesApi.list(), tasksApi.list(), purchasesApi.list()])
+      .then(([machineData, taskData, purchaseData]) => {
         setMachines(machineData);
         setTasks(taskData);
+        setPurchases(purchaseData);
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
@@ -41,13 +43,26 @@ export function AppProvider({ children }) {
   const updateMachine = useCallback(async (id, updates) => {
     const machine = machines.find(m => m.id === id);
     if (!machine) return;
-    const updated = await machinesApi.update(id, { ...machine, ...updates });
+
+    // Atualização otimista: reflete a mudança na UI antes da resposta da API
     setMachines(prev => prev.map(m =>
-      m.id === id
-        ? { ...updated, serviceLog: m.serviceLog, photos: m.photos, tests: m.tests }
-        : m
+      m.id === id ? { ...m, ...updates } : m
     ));
-    return updated;
+
+    try {
+      const updated = await machinesApi.update(id, { ...machine, ...updates });
+      // Confirma com os dados canônicos do servidor
+      setMachines(prev => prev.map(m =>
+        m.id === id
+          ? { ...updated, serviceLog: m.serviceLog, photos: m.photos, tests: m.tests }
+          : m
+      ));
+      return updated;
+    } catch (err) {
+      // Reverte para o estado original se a API falhar
+      setMachines(prev => prev.map(m => m.id === id ? machine : m));
+      throw err;
+    }
   }, [machines]);
 
   const deleteMachine = useCallback(async (id) => {
@@ -134,6 +149,24 @@ export function AppProvider({ children }) {
     return updated;
   }, [tasks]);
 
+  // Purchase operations
+  const addPurchase = useCallback(async (data) => {
+    const newPurchase = await purchasesApi.create(data);
+    setPurchases(prev => [newPurchase, ...prev]);
+    return newPurchase;
+  }, []);
+
+  const updatePurchase = useCallback(async (id, data) => {
+    const updated = await purchasesApi.update(id, data);
+    setPurchases(prev => prev.map(p => p.id === id ? updated : p));
+    return updated;
+  }, []);
+
+  const deletePurchase = useCallback(async (id) => {
+    await purchasesApi.delete(id);
+    setPurchases(prev => prev.filter(p => p.id !== id));
+  }, []);
+
   // Withdrawal operations (localStorage only)
   const addWithdrawal = useCallback((data) => {
     const year = new Date().getFullYear();
@@ -184,6 +217,7 @@ export function AppProvider({ children }) {
   const value = {
     machines,
     tasks,
+    purchases,
     withdrawals,
     loading,
     error,
@@ -201,6 +235,9 @@ export function AppProvider({ children }) {
     toggleTaskStatus,
     clearAllHistory,
     getStats,
+    addPurchase,
+    updatePurchase,
+    deletePurchase,
     addWithdrawal,
     markWithdrawalReturned,
     deleteWithdrawal,

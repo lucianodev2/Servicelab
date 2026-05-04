@@ -125,6 +125,18 @@ class PhotoORM(Base):
     machine = relationship("MachineORM", back_populates="photos")
 
 
+class PurchaseORM(Base):
+    __tablename__ = "purchases"
+
+    id          = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    name        = Column(String(300), nullable=False)
+    description = Column(String(500), nullable=True)
+    quantity    = Column(Integer,     nullable=False, default=1)
+    priority    = Column(String(10),  nullable=False, default="medium")
+    status      = Column(String(20),  nullable=False, default="pending")
+    created_at  = Column(DateTime,    nullable=False, default=datetime.utcnow)
+
+
 # ── Enums ─────────────────────────────────────────────────────────────────────
 
 class MachineStatus(str, Enum):
@@ -252,6 +264,35 @@ class TaskOut(TaskCreate):
     model_config = {"from_attributes": True}
 
 
+class PurchasePriority(str, Enum):
+    low    = "low"
+    medium = "medium"
+    high   = "high"
+
+class PurchaseStatus(str, Enum):
+    pending   = "pending"
+    purchased = "purchased"
+
+class PurchaseCreate(BaseModel):
+    name:        str
+    description: Optional[str]     = None
+    quantity:    int                = Field(ge=1, default=1)
+    priority:    PurchasePriority   = PurchasePriority.medium
+    status:      PurchaseStatus     = PurchaseStatus.pending
+
+class PurchaseUpdate(BaseModel):
+    name:        Optional[str]             = None
+    description: Optional[str]            = None
+    quantity:    Optional[int]             = Field(default=None, ge=1)
+    priority:    Optional[PurchasePriority] = None
+    status:      Optional[PurchaseStatus]  = None
+
+class PurchaseOut(PurchaseCreate):
+    id:         int
+    created_at: datetime
+    model_config = {"from_attributes": True}
+
+
 class Stats(BaseModel):
     total_machines:     int
     total_services:     int
@@ -304,6 +345,20 @@ def _run_migrations():
                 conn.execute(text("ALTER TABLE services ADD COLUMN entry_type VARCHAR(30) DEFAULT 'action'"))
             if "technician" not in existing:
                 conn.execute(text("ALTER TABLE services ADD COLUMN technician VARCHAR(200)"))
+
+        if insp.has_table("purchases"):
+            existing = {c["name"] for c in insp.get_columns("purchases")}
+            for col, typedef in [
+                ("description", "VARCHAR(500)"),
+                ("priority",    "VARCHAR(10) DEFAULT 'medium'"),
+                ("status",      "VARCHAR(20) DEFAULT 'pending'"),
+            ]:
+                if col not in existing:
+                    conn.execute(text(f"ALTER TABLE purchases ADD COLUMN {col} {typedef}"))
+            # Remove colunas antigas se existirem (unit, reason)
+            for old_col in ("unit", "reason"):
+                if old_col in existing:
+                    conn.execute(text(f"ALTER TABLE purchases DROP COLUMN {old_col}"))
 
 
 @app.on_event("startup")
@@ -582,6 +637,42 @@ def toggle_task_complete(task_id: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(task)
     return task
+
+# ── Purchases ─────────────────────────────────────────────────────────────────
+
+@app.get("/api/purchases", response_model=list[PurchaseOut], tags=["Purchases"])
+def list_purchases(db: Session = Depends(get_db)):
+    return db.query(PurchaseORM).order_by(PurchaseORM.created_at.desc()).all()
+
+
+@app.post("/api/purchases", response_model=PurchaseOut, status_code=201, tags=["Purchases"])
+def create_purchase(data: PurchaseCreate, db: Session = Depends(get_db)):
+    purchase = PurchaseORM(**data.model_dump())
+    db.add(purchase)
+    db.commit()
+    db.refresh(purchase)
+    return purchase
+
+
+@app.put("/api/purchases/{purchase_id}", response_model=PurchaseOut, tags=["Purchases"])
+def update_purchase(purchase_id: int, data: PurchaseUpdate, db: Session = Depends(get_db)):
+    purchase = db.query(PurchaseORM).filter(PurchaseORM.id == purchase_id).first()
+    if not purchase:
+        raise HTTPException(404, "Item de compra não encontrado")
+    for key, val in data.model_dump(exclude_none=True).items():
+        setattr(purchase, key, val)
+    db.commit()
+    db.refresh(purchase)
+    return purchase
+
+
+@app.delete("/api/purchases/{purchase_id}", status_code=204, tags=["Purchases"])
+def delete_purchase(purchase_id: int, db: Session = Depends(get_db)):
+    purchase = db.query(PurchaseORM).filter(PurchaseORM.id == purchase_id).first()
+    if not purchase:
+        raise HTTPException(404, "Item de compra não encontrado")
+    db.delete(purchase)
+    db.commit()
 
 # ── Stats ─────────────────────────────────────────────────────────────────────
 

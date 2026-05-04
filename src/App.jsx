@@ -13,6 +13,7 @@ import { ServiceHistory } from './pages/ServiceHistory';
 import { Tests } from './pages/Tests';
 import { ToolWithdrawal } from './pages/ToolWithdrawal';
 import { MachineStock } from './pages/MachineStock';
+import { Purchases } from './pages/Purchases';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth();
@@ -43,6 +44,7 @@ function App() {
               <Route path="tests" element={<Tests />} />
               <Route path="withdrawals" element={<ToolWithdrawal />} />
               <Route path="stock" element={<MachineStock />} />
+              <Route path="purchases" element={<Purchases />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>

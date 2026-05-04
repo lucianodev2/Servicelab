@@ -28,8 +28,20 @@ export function MachineList({ machines, searchQuery = '', initialStatusFilter = 
   const [editingMachine, setEditingMachine] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-  const handleStatusChange = (machineId, newStatus) => {
-    updateMachine(machineId, { status: newStatus });
+  const [statusError, setStatusError] = useState(null);
+
+  const handleStatusChange = async (machineId, newStatus) => {
+    setStatusError(null);
+    try {
+      await updateMachine(machineId, { status: newStatus });
+      // Se há filtro de status ativo e o novo status não corresponde,
+      // limpa o filtro para que a máquina permaneça visível na lista.
+      if (statusFilter !== 'all' && statusFilter !== newStatus) {
+        setStatusFilter('all');
+      }
+    } catch (err) {
+      setStatusError('Não foi possível atualizar o status. Tente novamente.');
+    }
   };
 
   const handleEdit = (machine) => {
@@ -87,6 +99,12 @@ export function MachineList({ machines, searchQuery = '', initialStatusFilter = 
 
   return (
     <div className="space-y-4">
+      {statusError && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center justify-between">
+          <span>{statusError}</span>
+          <button onClick={() => setStatusError(null)} className="ml-2 text-red-500 hover:text-red-700">✕</button>
+        </div>
+      )}
       {/* Search and Filter Bar */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">

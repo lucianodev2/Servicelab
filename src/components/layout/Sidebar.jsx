@@ -9,6 +9,7 @@ import {
   ClipboardCheck,
   PackageOpen,
   Warehouse,
+  ShoppingCart,
   X,
   LogOut,
 } from 'lucide-react';
@@ -22,6 +23,7 @@ const navItems = [
   { path: '/history',     label: 'Histórico',       icon: History },
   { path: '/withdrawals', label: 'Ferramentas',     icon: PackageOpen },
   { path: '/tasks',       label: 'Tarefas',         icon: CheckSquare },
+  { path: '/purchases',   label: 'Compras',         icon: ShoppingCart },
   { path: '/notes',       label: 'Notas',           icon: StickyNote },
 ];
 

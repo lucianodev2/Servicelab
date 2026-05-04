@@ -157,6 +157,48 @@ export const machinesApi = {
     request(`/api/photos/${photoId}`, { method: 'DELETE' }),
 }
 
+function toPurchase(p) {
+  return {
+    id:          String(p.id),
+    name:        p.name,
+    description: p.description || '',
+    quantity:    p.quantity,
+    priority:    p.priority    || 'medium',
+    status:      p.status      || 'pending',
+    createdAt:   p.created_at,
+  }
+}
+
+function fromPurchase(data) {
+  return {
+    name:        data.name,
+    description: data.description || null,
+    quantity:    data.quantity,
+    priority:    data.priority || 'medium',
+    status:      data.status   || 'pending',
+  }
+}
+
+export const purchasesApi = {
+  list: () =>
+    request('/api/purchases').then(list => list.map(toPurchase)),
+
+  create: (data) =>
+    request('/api/purchases', {
+      method: 'POST',
+      body: JSON.stringify(fromPurchase(data)),
+    }).then(toPurchase),
+
+  update: (id, data) =>
+    request(`/api/purchases/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(fromPurchase(data)),
+    }).then(toPurchase),
+
+  delete: (id) =>
+    request(`/api/purchases/${id}`, { method: 'DELETE' }),
+}
+
 export const tasksApi = {
   list: () =>
     request('/api/tasks').then(list => list.map(toTask)),
