@@ -34,7 +34,8 @@ CORS_ORIGINS = os.getenv(
     "http://localhost:5173,http://localhost:4173,http://localhost:3000",
 ).split(",")
 
-BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
+BASE_URL    = os.getenv("BASE_URL", "http://localhost:8000")
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
 UPLOAD_DIR = "uploads"
 
@@ -304,12 +305,14 @@ class Stats(BaseModel):
 
 # ── App ───────────────────────────────────────────────────────────────────────
 
+_is_dev = ENVIRONMENT != "production"
+
 app = FastAPI(
     title="Service Lab API",
     description="Gerenciamento de equipamentos, serviços, peças e tarefas.",
     version="2.1.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url="/docs" if _is_dev else None,
+    redoc_url="/redoc" if _is_dev else None,
 )
 
 app.add_middleware(
