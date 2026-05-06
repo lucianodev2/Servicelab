@@ -314,10 +314,12 @@ function ToolFormModal({ initial, existingCodes, onClose, onSave }) {
 
   const validate = () => {
     const e = {};
-    if (!form.codigo.trim()) {
+    const novoCodigo    = form.codigo.trim().toUpperCase();
+    const codigoOriginal = initial?.codigo?.toUpperCase();
+    if (!novoCodigo) {
       e.codigo = 'Campo obrigatório';
-    } else if (!isEdit && existingCodes.has(form.codigo.trim().toUpperCase())) {
-      e.codigo = 'Código já cadastrado';
+    } else if (existingCodes.has(novoCodigo) && novoCodigo !== codigoOriginal) {
+      e.codigo = 'Código já cadastrado por outra ferramenta';
     }
     if (!form.nome.trim()) e.nome = 'Campo obrigatório';
     const qty = Number(form.quantidadeTotal);
@@ -362,8 +364,7 @@ function ToolFormModal({ initial, existingCodes, onClose, onSave }) {
             <input type="text" value={form.codigo}
               onChange={e => setForm(p => ({ ...p, codigo: e.target.value }))}
               placeholder="Ex: FERR-001"
-              disabled={isEdit}
-              className={`${inputClass('codigo')} uppercase placeholder:normal-case ${isEdit ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''}`}
+              className={`${inputClass('codigo')} uppercase placeholder:normal-case`}
             />
             {errors.codigo && <p className="text-xs text-red-500 mt-1">{errors.codigo}</p>}
           </div>
