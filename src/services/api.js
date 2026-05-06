@@ -47,7 +47,7 @@ function toMachine(m) {
     problemDescription: m.problem_description || '',
     status:             m.status,
     urgent:             m.urgent,
-    completionData:     m.completion_data ? JSON.parse(m.completion_data) : null,
+    completionData:     (() => { try { return m.completion_data ? JSON.parse(m.completion_data) : null } catch { return null } })(),
     createdAt:          m.created_at,
     updatedAt:          m.updated_at || m.created_at,
     serviceLog:         [],
