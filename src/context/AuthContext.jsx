@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState } from 'react';
 
 const CREDENTIALS = {
-  email: 'lucinomartins2@gmail.com',
-  password: 'lucianos2',
+  email:    import.meta.env.VITE_AUTH_EMAIL    || '',
+  password: import.meta.env.VITE_AUTH_PASSWORD || '',
 };
 
 const AUTH_KEY = 'servicelab_auth';
