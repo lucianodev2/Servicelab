@@ -1,14 +1,27 @@
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const BASE_URL      = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const TIMEOUT_MS    = 15_000
 
 async function request(path, options = {}) {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  })
-  if (res.status === 204) return null
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.detail || `Erro ${res.status}`)
-  return data
+  const controller = new AbortController()
+  const timer      = setTimeout(() => controller.abort(), TIMEOUT_MS)
+
+  try {
+    const res = await fetch(`${BASE_URL}${path}`, {
+      headers: { 'Content-Type': 'application/json' },
+      ...options,
+      signal: controller.signal,
+    })
+    clearTimeout(timer)
+    if (res.status === 204) return null
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.detail || `Erro ${res.status}`)
+    return data
+  } catch (err) {
+    clearTimeout(timer)
+    if (err.name === 'AbortError')
+      throw new Error('Tempo de resposta esgotado. Verifique sua conexão e tente novamente.')
+    throw err
+  }
 }
 
 function toPhoto(p) {
