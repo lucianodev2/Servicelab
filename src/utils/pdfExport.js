@@ -1226,3 +1226,188 @@ export function generateRequisitionPDF(header, items) {
   const fileDateStr = now.toLocaleDateString('pt-BR').replace(/\//g, '-');
   doc.save(`requisicao-interna-${fileDateStr}.pdf`);
 }
+
+// ─── Relatório de Estoque de Ferramentas ─────────────────────────────────────
+
+export function generateToolStockReport(tools) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  const now = new Date();
+  const pageWidth  = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin     = 40;
+  const cw         = pageWidth - margin * 2;
+
+  const NAVY  = [30, 58, 138];
+  const BLUE  = [30, 64, 175];
+  const LIGHT = [239, 246, 255];
+  const DARK  = [30, 41, 59];
+  const MID   = [100, 116, 139];
+  const WHITE = [255, 255, 255];
+  const STRIPE= [99, 102, 241];
+  const ALT   = [248, 250, 252];
+  const BORDER= [203, 213, 225];
+  const GREEN = [22, 163, 74];
+  const ORANGE= [234, 88, 12];
+
+  // ── Cabeçalho ────────────────────────────────────────────────────────────────
+  doc.setFillColor(...NAVY);
+  doc.rect(0, 0, pageWidth, 52, 'F');
+  doc.setFillColor(...STRIPE);
+  doc.rect(0, 0, 6, 52, 'F');
+
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...WHITE);
+  doc.text('RELATÓRIO DE ESTOQUE', margin + 10, 24);
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(147, 197, 253);
+  doc.text('ServiceLab — Controle de Ferramentas', margin + 10, 38);
+
+  const ts = `Emitido em: ${now.toLocaleString('pt-BR')}`;
+  doc.setFontSize(8);
+  doc.text(ts, pageWidth - margin, 38, { align: 'right' });
+
+  let y = 70;
+
+  // ── Resumo ────────────────────────────────────────────────────────────────────
+  const totalUnidades   = tools.reduce((s, t) => s + t.quantidadeTotal, 0);
+  const totalDisponiveis= tools.reduce((s, t) => s + (t.quantidadeDisponivel ?? t.quantidadeTotal), 0);
+  const totalEmprestadas= tools.reduce((s, t) => s + (t.quantidadeEmprestada ?? 0), 0);
+
+  const summaryItems = [
+    { label: 'Ferramentas', value: String(tools.length) },
+    { label: 'Total Unidades', value: String(totalUnidades) },
+    { label: 'Disponíveis', value: String(totalDisponiveis) },
+    { label: 'Emprestadas', value: String(totalEmprestadas) },
+  ];
+
+  const sumW = cw / summaryItems.length;
+  doc.setFillColor(...LIGHT);
+  doc.roundedRect(margin, y, cw, 36, 3, 3, 'F');
+  doc.setDrawColor(...BORDER);
+  doc.roundedRect(margin, y, cw, 36, 3, 3, 'S');
+
+  summaryItems.forEach(({ label, value }, i) => {
+    const x = margin + i * sumW + sumW / 2;
+    if (i > 0) {
+      doc.setDrawColor(...BORDER);
+      doc.line(margin + i * sumW, y + 6, margin + i * sumW, y + 30);
+    }
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...MID);
+    doc.text(label.toUpperCase(), x, y + 13, { align: 'center' });
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...NAVY);
+    doc.text(value, x, y + 28, { align: 'center' });
+  });
+
+  y += 50;
+
+  // ── Tabela ────────────────────────────────────────────────────────────────────
+  const cols = [
+    { label: 'CÓDIGO',     w: cw * 0.15, align: 'left'   },
+    { label: 'NOME',       w: cw * 0.40, align: 'left'   },
+    { label: 'TOTAL',      w: cw * 0.15, align: 'center' },
+    { label: 'DISPONÍVEL', w: cw * 0.15, align: 'center' },
+    { label: 'EMPRESTADO', w: cw * 0.15, align: 'center' },
+  ];
+
+  const rowH = 22;
+
+  // Header row
+  doc.setFillColor(...NAVY);
+  doc.rect(margin, y, cw, rowH, 'F');
+
+  let cx = margin;
+  cols.forEach(({ label, w, align }) => {
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...WHITE);
+    const tx = align === 'center' ? cx + w / 2 : cx + 6;
+    doc.text(label, tx, y + 14, { align });
+    cx += w;
+  });
+
+  y += rowH;
+
+  // Data rows
+  tools.forEach((tool, idx) => {
+    if (y + rowH > pageHeight - 30) {
+      doc.addPage();
+      y = 20;
+      // repeat header
+      doc.setFillColor(...NAVY);
+      doc.rect(margin, y, cw, rowH, 'F');
+      let hx = margin;
+      cols.forEach(({ label, w, align }) => {
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...WHITE);
+        const tx = align === 'center' ? hx + w / 2 : hx + 6;
+        doc.text(label, tx, y + 14, { align });
+        hx += w;
+      });
+      y += rowH;
+    }
+
+    if (idx % 2 === 0) {
+      doc.setFillColor(...ALT);
+      doc.rect(margin, y, cw, rowH, 'F');
+    }
+    doc.setDrawColor(...BORDER);
+    doc.line(margin, y + rowH, margin + cw, y + rowH);
+
+    const disponivel  = tool.quantidadeDisponivel  ?? tool.quantidadeTotal;
+    const emprestado  = tool.quantidadeEmprestada  ?? 0;
+    const cells = [
+      { value: tool.codigo,              w: cols[0].w, align: 'left'   },
+      { value: tool.nome,                w: cols[1].w, align: 'left'   },
+      { value: String(tool.quantidadeTotal), w: cols[2].w, align: 'center' },
+      { value: String(disponivel),       w: cols[3].w, align: 'center' },
+      { value: emprestado > 0 ? String(emprestado) : '—', w: cols[4].w, align: 'center' },
+    ];
+
+    let rx = margin;
+    cells.forEach(({ value, w, align }, ci) => {
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', ci === 0 ? 'bold' : 'normal');
+      if (ci === 3) {
+        doc.setTextColor(...(disponivel > 0 ? GREEN : [220, 38, 38]));
+      } else if (ci === 4 && emprestado > 0) {
+        doc.setTextColor(...ORANGE);
+      } else {
+        doc.setTextColor(...DARK);
+      }
+      const tx = align === 'center' ? rx + w / 2 : rx + 6;
+      const truncated = doc.splitTextToSize(value, w - 10)[0];
+      doc.text(truncated, tx, y + 14, { align });
+      rx += w;
+    });
+
+    y += rowH;
+  });
+
+  // ── Rodapé ────────────────────────────────────────────────────────────────────
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFillColor(...NAVY);
+    doc.rect(0, pageHeight - 14, pageWidth, 14, 'F');
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...WHITE);
+    doc.text(
+      `ServiceLab — Estoque de Ferramentas  |  Página ${i} de ${totalPages}`,
+      pageWidth / 2, pageHeight - 5, { align: 'center' }
+    );
+    doc.setTextColor(147, 197, 253);
+    doc.text(ts, margin, pageHeight - 5);
+  }
+
+  const fileDateStr = now.toLocaleDateString('pt-BR').replace(/\//g, '-');
+  doc.save(`estoque-ferramentas-${fileDateStr}.pdf`);
+}

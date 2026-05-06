@@ -12,6 +12,8 @@ export function AppProvider({ children }) {
   const [error, setError] = useState(null);
   const [withdrawals, setWithdrawals] = useLocalStorage('lab_withdrawals', []);
   const [purchases, setPurchases] = useLocalStorage('lab_purchases', []);
+  const [tools, setTools] = useLocalStorage('lab_tools', []);
+  const [loans, setLoans] = useLocalStorage('lab_loans', []);
 
   useEffect(() => {
     Promise.all([machinesApi.list(), tasksApi.list()])
@@ -167,6 +169,44 @@ export function AppProvider({ children }) {
     setPurchases(prev => prev.filter(p => p.id !== id));
   }, [setPurchases]);
 
+  // Tool catalog operations (localStorage)
+  const addTool = useCallback((data) => {
+    const newTool = { ...data, id: generateId(), createdAt: new Date().toISOString() };
+    setTools(prev => [...prev, newTool]);
+    return newTool;
+  }, [setTools]);
+
+  const updateTool = useCallback((id, data) => {
+    setTools(prev => prev.map(t => t.id === id ? { ...t, ...data } : t));
+  }, [setTools]);
+
+  const deleteTool = useCallback((id) => {
+    setTools(prev => prev.filter(t => t.id !== id));
+  }, [setTools]);
+
+  // Loan operations (localStorage)
+  const lendTool = useCallback((data) => {
+    const newLoan = {
+      ...data,
+      id: generateId(),
+      status: 'emprestado',
+      dataDevolucao: null,
+      createdAt: new Date().toISOString(),
+    };
+    setLoans(prev => [newLoan, ...prev]);
+    return newLoan;
+  }, [setLoans]);
+
+  const returnLoan = useCallback((loanId, quantidadeDevolvida) => {
+    setLoans(prev => prev.map(l => {
+      if (l.id !== loanId) return l;
+      if (quantidadeDevolvida >= l.quantidade) {
+        return { ...l, status: 'devolvido', dataDevolucao: new Date().toISOString() };
+      }
+      return { ...l, quantidade: l.quantidade - quantidadeDevolvida };
+    }));
+  }, [setLoans]);
+
   // Withdrawal operations (localStorage only)
   const addWithdrawal = useCallback((data) => {
     const year = new Date().getFullYear();
@@ -219,6 +259,8 @@ export function AppProvider({ children }) {
     tasks,
     purchases,
     withdrawals,
+    tools,
+    loans,
     loading,
     error,
     addMachine,
@@ -238,6 +280,11 @@ export function AppProvider({ children }) {
     addPurchase,
     updatePurchase,
     deletePurchase,
+    addTool,
+    updateTool,
+    deleteTool,
+    lendTool,
+    returnLoan,
     addWithdrawal,
     markWithdrawalReturned,
     deleteWithdrawal,
