@@ -7,7 +7,8 @@ from typing import Optional, Generator
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -362,6 +363,14 @@ def _run_migrations():
             for old_col in ("unit", "reason"):
                 if old_col in existing:
                     conn.execute(text(f"ALTER TABLE purchases DROP COLUMN {old_col}"))
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Erro interno do servidor. Tente novamente mais tarde."},
+    )
 
 
 @app.on_event("startup")
