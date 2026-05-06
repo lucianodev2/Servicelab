@@ -38,7 +38,8 @@ CORS_ORIGINS = os.getenv(
 BASE_URL    = os.getenv("BASE_URL", "http://localhost:8000")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
-UPLOAD_DIR = "uploads"
+UPLOAD_DIR       = "uploads"
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
 
 engine = create_engine(DB_URL, echo=False, connect_args={"client_encoding": "utf8"})
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
@@ -487,11 +488,15 @@ async def upload_photo(
         if ext not in ("jpg", "jpeg", "png", "webp", "gif"):
             ext = "jpg"
 
+    content = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "Arquivo muito grande. Tamanho máximo permitido: 10 MB")
+
     filename = f"{uuid_module.uuid4().hex}.{ext}"
     file_path = os.path.join(UPLOAD_DIR, filename)
 
     with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+        buffer.write(content)
 
     url = f"{BASE_URL}/uploads/{filename}"
 
