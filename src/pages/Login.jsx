@@ -3,6 +3,24 @@ import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Printer, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
+const MAX_ATTEMPTS    = 5;
+const LOCKOUT_MS      = 30_000;
+const ATTEMPTS_KEY    = 'sl_login_attempts';
+
+function getAttemptState() {
+  try {
+    const raw = sessionStorage.getItem(ATTEMPTS_KEY);
+    if (!raw) return { count: 0, lockedUntil: 0 };
+    return JSON.parse(raw);
+  } catch {
+    return { count: 0, lockedUntil: 0 };
+  }
+}
+
+function saveAttemptState(state) {
+  try { sessionStorage.setItem(ATTEMPTS_KEY, JSON.stringify(state)); } catch {}
+}
+
 export function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -13,6 +31,18 @@ export function Login() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [, forceUpdate] = useState(0);
+
+  const attemptState  = getAttemptState();
+  const remainingMs   = Math.max(0, attemptState.lockedUntil - Date.now());
+  const isLocked      = remainingMs > 0;
+  const remainingSec  = Math.ceil(remainingMs / 1000);
+
+  React.useEffect(() => {
+    if (!isLocked) return;
+    const t = setTimeout(() => forceUpdate(n => n + 1), remainingMs);
+    return () => clearTimeout(t);
+  }, [isLocked, remainingMs]);
 
   const set = (field) => (e) => {
     setForm(prev => ({ ...prev, [field]: e.target.value }));
@@ -22,14 +52,11 @@ export function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!form.email.trim()) {
-      setError('Por favor, informe o email.');
-      return;
-    }
-    if (!form.password) {
-      setError('Por favor, informe a senha.');
-      return;
-    }
+    const state = getAttemptState();
+    if (Date.now() < state.lockedUntil) return;
+
+    if (!form.email.trim()) { setError('Por favor, informe o email.'); return; }
+    if (!form.password)      { setError('Por favor, informe a senha.'); return; }
 
     setLoading(true);
     await new Promise(r => setTimeout(r, 700));
@@ -37,10 +64,22 @@ export function Login() {
     const ok = login(form.email.trim(), form.password, remember);
 
     if (ok) {
+      saveAttemptState({ count: 0, lockedUntil: 0 });
       setSuccess(true);
       setTimeout(() => navigate('/'), 900);
     } else {
-      setError('Email ou senha incorretos. Tente novamente.');
+      const newCount = state.count + 1;
+      const locked   = newCount >= MAX_ATTEMPTS;
+      saveAttemptState({
+        count:       locked ? 0 : newCount,
+        lockedUntil: locked ? Date.now() + LOCKOUT_MS : 0,
+      });
+      forceUpdate(n => n + 1);
+      setError(
+        locked
+          ? `Muitas tentativas. Aguarde ${LOCKOUT_MS / 1000} segundos.`
+          : `Email ou senha incorretos. ${MAX_ATTEMPTS - newCount} tentativa${MAX_ATTEMPTS - newCount !== 1 ? 's' : ''} restante${MAX_ATTEMPTS - newCount !== 1 ? 's' : ''}.`
+      );
     }
     setLoading(false);
   };
@@ -168,12 +207,18 @@ export function Login() {
               {/* Botão entrar */}
               <button
                 type="submit"
-                disabled={loading || success}
+                disabled={loading || success || isLocked}
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-white shadow-lg hover:shadow-xl transition-all disabled:opacity-70 disabled:cursor-not-allowed mt-2"
                 style={{ background: 'linear-gradient(135deg, #1e88e5 0%, #7b1fa2 100%)' }}
               >
                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                {loading ? 'Entrando...' : success ? 'Redirecionando...' : 'Entrar'}
+                {loading
+                  ? 'Entrando...'
+                  : success
+                  ? 'Redirecionando...'
+                  : isLocked
+                  ? `Aguarde ${remainingSec}s`
+                  : 'Entrar'}
               </button>
             </form>
 
