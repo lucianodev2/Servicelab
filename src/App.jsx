@@ -1,9 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
-import { AuthProvider, useAuth } from './context/AuthContext';
 import { Layout } from './components/layout/Layout';
-import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Machines } from './pages/Machines';
 import { MachineDetailPage } from './pages/MachineDetailPage';
@@ -29,30 +27,23 @@ function LoadingScreen() {
   );
 }
 
-function ProtectedRoute({ children }) {
-  const { isAuthenticated } = useAuth();
+function AppRoutes() {
   const { loading } = useApp();
 
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (loading) return <LoadingScreen />;
-  return children;
+  return <Layout />;
 }
 
 function App() {
   return (
-    <AuthProvider>
-      <AppProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <Layout />
-                </ProtectedRoute>
-              }
-            >
+    <AppProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<Navigate to="/" replace />} />
+          <Route
+            path="/"
+            element={<AppRoutes />}
+          >
               <Route index element={<Dashboard />} />
               <Route path="machines" element={<Machines />} />
               <Route path="machines/:id" element={<MachineDetailPage />} />
@@ -69,7 +60,6 @@ function App() {
           </Routes>
         </BrowserRouter>
       </AppProvider>
-    </AuthProvider>
   );
 }
 

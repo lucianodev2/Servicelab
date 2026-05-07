@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
   Printer,
@@ -12,9 +12,7 @@ import {
   ShoppingCart,
   ClipboardList,
   X,
-  LogOut,
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
 
 const navItems = [
   { path: '/',            label: 'Painel',          icon: LayoutDashboard },
@@ -30,14 +28,6 @@ const navItems = [
 ];
 
 export function Sidebar({ isOpen, onClose }) {
-  const { logout } = useAuth();
-  const navigate = useNavigate();
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
   return (
     <>
       {/* Overlay mobile */}
@@ -117,13 +107,6 @@ export function Sidebar({ isOpen, onClose }) {
             <p className="text-sm font-medium text-gray-900 truncate min-w-0 flex-1">
               Luciano Martins - Auxiliar Tecnico
             </p>
-            <button
-              onClick={handleLogout}
-              className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors shrink-0"
-              title="Sair"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
           </div>
         </div>
       </aside>
